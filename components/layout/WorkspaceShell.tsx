@@ -42,6 +42,7 @@ const links = {
     ["Users", "/admin/users"],
     ["Organizations", "/admin/organizations"],
     ["Inventory", "/admin/inventory"],
+    ["AI intelligence", "/admin/ai"],
   ],
 } as const;
 
