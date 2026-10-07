@@ -114,6 +114,8 @@ export type RequestStatus =
   | "draft"
   | "submitted"
   | "under_review"
+  | "approved"
+  | "rejected"
   | "matching"
   | "partially_fulfilled"
   | "fulfilled"
@@ -147,10 +149,11 @@ export type BloodRequestEvent = {
   actorUserId: string;
   eventType:
     | "created"
-    | "updated"
-    | "matched"
+    | "submitted"
+    | "reviewed"
+    | "approved"
+    | "rejected"
     | "reserved"
-    | "dispatched"
     | "fulfilled"
     | "cancelled";
   metadata?: Record<string, unknown>;
