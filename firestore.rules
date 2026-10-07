@@ -10,20 +10,46 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
 
+    function activeUser() {
+      return signedIn() && profile().status != "disabled";
+    }
+
     function bloodBankMember(bloodBankId) {
-      return signedIn()
+      return activeUser()
         && profile().role == "bloodBank"
         && profile().organizationId == bloodBankId;
     }
 
     function hospitalMember(hospitalId) {
-      return signedIn()
+      return activeUser()
         && profile().role == "hospital"
         && profile().organizationId == hospitalId;
     }
 
     function trustedAdmin() {
-      return signedIn() && request.auth.token.admin == true;
+      return activeUser()
+        && profile().role == "administrator"
+        && request.auth.token.admin == true;
+    }
+
+    match /donorProfiles/{userId} {
+      allow read: if activeUser() && request.auth.uid == userId;
+      allow create: if activeUser()
+        && request.auth.uid == userId
+        && request.resource.data.userId == userId
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.keys().hasOnly([
+          "userId", "bloodGroup", "rhFactor", "city", "phone",
+          "availabilityStatus", "consentToEmergencyContact", "updatedAt"
+        ]);
+      allow update: if activeUser()
+        && request.auth.uid == userId
+        && request.resource.data.userId == resource.data.userId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          "bloodGroup", "rhFactor", "city", "phone",
+          "availabilityStatus", "consentToEmergencyContact", "updatedAt"
+        ]);
+      allow delete: if false;
     }
 
     match /bloodInventory/{inventoryId} {
@@ -54,7 +80,7 @@ service cloud.firestore {
     }
 
     match /patients/{patientId} {
-      allow read: if signedIn()
+      allow read: if activeUser()
         && profile().role == "hospital"
         && resource.data.hospitalId == profile().organizationId;
       allow create: if hospitalMember(request.resource.data.hospitalId)
@@ -98,20 +124,31 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      allow read: if signedIn() && (request.auth.uid == userId || trustedAdmin());
-      allow update, create, delete: if false;
+      allow read: if activeUser() && (request.auth.uid == userId || trustedAdmin());
+      allow create: if signedIn()
+        && request.auth.uid == userId
+        && request.resource.data.role in ["donor", "hospital", "bloodBank", "pending"]
+        && request.resource.data.requestedRole is string
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.keys().hasOnly([
+          "name", "email", "phone", "role", "requestedRole",
+          "createdAt", "updatedAt"
+        ])
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+      allow update, delete: if false;
     }
 
     match /organizationMembers/{membershipId} {
       allow read: if trustedAdmin()
-        || (signedIn() && resource.data.userId == request.auth.uid);
+        || (activeUser() && resource.data.userId == request.auth.uid);
       allow write: if false;
     }
 
     match /notifications/{notificationId} {
-      allow read: if signedIn()
+      allow read: if activeUser()
         && resource.data.recipientUserId == request.auth.uid;
-      allow update: if signedIn()
+      allow update: if activeUser()
         && resource.data.recipientUserId == request.auth.uid
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["readAt"]);
       allow create, delete: if false;
