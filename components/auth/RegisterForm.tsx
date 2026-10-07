@@ -3,6 +3,7 @@
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import { useState, type FormEvent } from "react";
 import { auth } from "@/lib/firebase";
+import { createUserProfile } from "@/lib/userProfile";
 import { AuthInput } from "./AuthInput";
 import { getFirebaseErrorMessage } from "./firebaseErrorMessage";
 import { PasswordField } from "./PasswordField";
@@ -39,8 +40,22 @@ export function RegisterForm() {
 
     setSubmitting(true);
     try {
-      await createUserWithEmailAndPassword(auth, email, password);
-      setSuccess("Account created successfully. Your workspace setup will continue next.");
+      const { user } = await createUserWithEmailAndPassword(auth, email, password);
+
+      try {
+        await createUserProfile({
+          uid: user.uid,
+          name: fullName,
+          email,
+          phone,
+          requestedRole: role,
+        });
+      } catch {
+        setError("Your account was created, but we couldn't save your profile. Please try again.");
+        return;
+      }
+
+      setSuccess("Account created successfully. Your profile has been saved.");
     } catch (firebaseError: unknown) {
       setError(getFirebaseErrorMessage(firebaseError, "register"));
     } finally {
