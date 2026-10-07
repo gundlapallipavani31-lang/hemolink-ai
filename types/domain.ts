@@ -53,6 +53,7 @@ export type DonorAvailabilityStatus = "available" | "unavailable" | "unknown";
 
 export type DonorProfile = {
   userId: string;
+  phone?: string;
   bloodGroup?: BloodGroup;
   rhFactor?: RhFactor;
   eligibilityStatus: DonorEligibilityStatus;

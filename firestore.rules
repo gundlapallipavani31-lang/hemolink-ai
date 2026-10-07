@@ -52,6 +52,11 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    match /donations/{donationId} {
+      allow read: if activeUser() && resource.data.donorId == request.auth.uid;
+      allow create, update, delete: if false;
+    }
+
     match /bloodInventory/{inventoryId} {
       allow read: if bloodBankMember(resource.data.bloodBankId) || trustedAdmin();
       allow create: if bloodBankMember(request.resource.data.bloodBankId)
@@ -68,8 +73,8 @@ service cloud.firestore {
     }
 
     match /organizations/{organizationId} {
-      allow read: if bloodBankMember(organizationId) || trustedAdmin();
-      allow update: if bloodBankMember(organizationId)
+      allow read: if bloodBankMember(organizationId) || hospitalMember(organizationId) || trustedAdmin();
+      allow update: if (bloodBankMember(organizationId) || hospitalMember(organizationId))
         && request.resource.data.type == resource.data.type
         && request.resource.data.verificationStatus == resource.data.verificationStatus
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
@@ -77,6 +82,16 @@ service cloud.firestore {
           "address", "city", "state", "country", "updatedAt"
         ]);
       allow create, delete: if false;
+    }
+
+    match /organizationRequests/{requestId} {
+      allow read: if activeUser() && resource.data.requestedBy == request.auth.uid;
+      allow create: if activeUser()
+        && profile().role == "hospital"
+        && !profile().organizationId
+        && request.resource.data.requestedBy == request.auth.uid
+        && request.resource.data.status == "pending";
+      allow update, delete: if false;
     }
 
     match /patients/{patientId} {
