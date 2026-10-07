@@ -7,7 +7,7 @@ import { formatRole } from "@/types/auth";
 import { useAuth } from "@/hooks/useAuth";
 
 type WorkspaceShellProps = {
-  kind: "donor" | "hospital";
+  kind: "donor" | "hospital" | "bloodBank";
   children: ReactNode;
 };
 
@@ -27,6 +27,14 @@ const links = {
     ["Availability", "/hospital/availability"],
     ["Requests", "/hospital/requests"],
     ["Team", "/hospital/team"],
+  ],
+  bloodBank: [
+    ["Overview", "/blood-bank"],
+    ["Profile", "/blood-bank/profile"],
+    ["Inventory", "/blood-bank/inventory"],
+    ["Requests", "/blood-bank/requests"],
+    ["Distribution", "/blood-bank/distribution"],
+    ["Team", "/blood-bank/team"],
   ],
 } as const;
 

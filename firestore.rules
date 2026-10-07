@@ -1,0 +1,42 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function profile() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function bloodBankMember(bloodBankId) {
+      return signedIn()
+        && profile().role == "bloodBank"
+        && profile().organizationId == bloodBankId;
+    }
+
+    match /bloodInventory/{inventoryId} {
+      allow read: if bloodBankMember(resource.data.bloodBankId);
+      allow create: if bloodBankMember(request.resource.data.bloodBankId)
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+      allow update: if bloodBankMember(resource.data.bloodBankId)
+        && request.resource.data.bloodBankId == resource.data.bloodBankId
+        && request.resource.data.createdAt == resource.data.createdAt;
+      allow delete: if false;
+    }
+
+    match /organizations/{organizationId} {
+      allow read: if bloodBankMember(organizationId);
+      allow update: if bloodBankMember(organizationId)
+        && request.resource.data.type == resource.data.type
+        && request.resource.data.verificationStatus == resource.data.verificationStatus
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          "name", "legalName", "registrationNumber", "email", "phone",
+          "address", "city", "state", "country", "updatedAt"
+        ]);
+      allow create, delete: if false;
+    }
+  }
+}
