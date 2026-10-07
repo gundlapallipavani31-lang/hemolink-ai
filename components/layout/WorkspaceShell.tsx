@@ -39,6 +39,9 @@ const links = {
   administrator: [
     ["Overview", "/admin"],
     ["Requests", "/admin/requests"],
+    ["Users", "/admin/users"],
+    ["Organizations", "/admin/organizations"],
+    ["Inventory", "/admin/inventory"],
   ],
 } as const;
 

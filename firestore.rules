@@ -42,7 +42,7 @@ service cloud.firestore {
     }
 
     match /organizations/{organizationId} {
-      allow read: if bloodBankMember(organizationId);
+      allow read: if bloodBankMember(organizationId) || trustedAdmin();
       allow update: if bloodBankMember(organizationId)
         && request.resource.data.type == resource.data.type
         && request.resource.data.verificationStatus == resource.data.verificationStatus
@@ -95,6 +95,26 @@ service cloud.firestore {
     match /auditLogs/{auditLogId} {
       allow read: if trustedAdmin();
       allow create, update, delete: if false;
+    }
+
+    match /users/{userId} {
+      allow read: if signedIn() && (request.auth.uid == userId || trustedAdmin());
+      allow update, create, delete: if false;
+    }
+
+    match /organizationMembers/{membershipId} {
+      allow read: if trustedAdmin()
+        || (signedIn() && resource.data.userId == request.auth.uid);
+      allow write: if false;
+    }
+
+    match /notifications/{notificationId} {
+      allow read: if signedIn()
+        && resource.data.recipientUserId == request.auth.uid;
+      allow update: if signedIn()
+        && resource.data.recipientUserId == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["readAt"]);
+      allow create, delete: if false;
     }
   }
 }
