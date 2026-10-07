@@ -1,4 +1,4 @@
-import { addDoc, collection, serverTimestamp } from "firebase/firestore";
+import { addDoc, collection, getDocs, query, where, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
 export async function createAuditLog(input: {
@@ -13,4 +13,11 @@ export async function createAuditLog(input: {
     ...input,
     createdAt: serverTimestamp(),
   });
+}
+
+export async function listAuditLogs(entityId: string) {
+  const snapshot = await getDocs(
+    query(collection(db, "auditLogs"), where("entityId", "==", entityId)),
+  );
+  return snapshot.docs.map((item) => ({ id: item.id, ...item.data() }));
 }

@@ -1,2 +1,2 @@
-import { AdminDashboard } from "@/components/admin/requests/AdminRequests";
-export default AdminDashboard;
+import { AdminDashboardOverview } from "@/components/admin/AdminOperations";
+export default AdminDashboardOverview;

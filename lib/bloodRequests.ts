@@ -7,15 +7,13 @@ import {
   query,
   serverTimestamp,
   Timestamp,
-  updateDoc,
   where,
 } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { auth, db } from "@/lib/firebase";
 import type {
   BloodComponent,
   BloodGroup,
   BloodRequest,
-  RequestStatus,
   RequestUrgency,
   RhFactor,
 } from "@/types/domain";
@@ -101,23 +99,18 @@ export async function cancelBloodRequest(
   hospitalId: string,
   actorUserId: string,
 ) {
-  const request = await getBloodRequest(requestId);
-  if (
-    !request ||
-    request.hospitalId !== hospitalId ||
-    !["submitted", "under_review"].includes(request.status)
-  ) {
-    throw new Error("This request cannot be cancelled.");
+  void hospitalId;
+  void actorUserId;
+  const currentUser = auth.currentUser;
+  if (!currentUser) throw new Error("Authentication required.");
+  const token = await currentUser.getIdToken();
+  const response = await fetch("/api/hospital/requests/cancel", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ requestId }),
+  });
+  if (!response.ok) {
+    const body = (await response.json()) as { error?: string };
+    throw new Error(body.error || "This request cannot be cancelled.");
   }
-  await updateDoc(doc(db, "bloodRequests", requestId), {
-    status: "cancelled" satisfies RequestStatus,
-    updatedAt: serverTimestamp(),
-  });
-  await addDoc(collection(db, "bloodRequestEvents"), {
-    requestId,
-    actorUserId,
-    eventType: "cancelled",
-    metadata: {},
-    createdAt: serverTimestamp(),
-  });
 }

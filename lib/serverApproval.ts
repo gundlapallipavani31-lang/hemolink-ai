@@ -1,6 +1,7 @@
 import { FieldValue } from "firebase-admin/firestore";
 import type { BloodRequest } from "@/types/domain";
 import { getAdminServices } from "@/lib/firebaseAdmin";
+import { createNotification } from "@/lib/notifications";
 
 export async function approveRequestWithTrustedAdmin(
   idToken: string,
@@ -15,7 +16,7 @@ export async function approveRequestWithTrustedAdmin(
     throw new Error("Administrator authorization is required.");
   }
 
-  return db.runTransaction(async (transaction) => {
+  const result = await db.runTransaction(async (transaction) => {
     const requestRef = db.collection("bloodRequests").doc(requestId);
     const requestSnapshot = await transaction.get(requestRef);
     if (!requestSnapshot.exists) throw new Error("Blood request not found.");
@@ -88,8 +89,19 @@ export async function approveRequestWithTrustedAdmin(
       metadata: { unitsReserved: request.unitsRequested },
       createdAt: FieldValue.serverTimestamp(),
     });
-    return { status: "approved" as const };
+    return { status: "approved" as const, createdBy: request.createdBy };
   });
+  if (result.createdBy) {
+    await createNotification({
+      recipientUserId: result.createdBy,
+      type: "approval",
+      title: "Blood request approved",
+      body: "Your blood request was approved and matching stock was reserved.",
+      relatedEntityType: "bloodRequest",
+      relatedEntityId: requestId,
+    });
+  }
+  return { status: result.status };
 }
 
 export async function rejectRequestWithTrustedAdmin(
@@ -106,7 +118,7 @@ export async function rejectRequestWithTrustedAdmin(
   }
   if (!reason.trim()) throw new Error("A rejection reason is required.");
 
-  await db.runTransaction(async (transaction) => {
+  const result = await db.runTransaction(async (transaction) => {
     const requestRef = db.collection("bloodRequests").doc(requestId);
     const snapshot = await transaction.get(requestRef);
     if (!snapshot.exists) throw new Error("Blood request not found.");
@@ -136,5 +148,16 @@ export async function rejectRequestWithTrustedAdmin(
       metadata: { reason: reason.trim() },
       createdAt: FieldValue.serverTimestamp(),
     });
+    return { createdBy: request.createdBy };
   });
+  if (result.createdBy) {
+    await createNotification({
+      recipientUserId: result.createdBy,
+      type: "request",
+      title: "Blood request rejected",
+      body: `Your blood request was rejected: ${reason.trim()}`,
+      relatedEntityType: "bloodRequest",
+      relatedEntityId: requestId,
+    });
+  }
 }
