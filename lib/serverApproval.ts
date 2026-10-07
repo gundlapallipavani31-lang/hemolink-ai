@@ -8,11 +8,15 @@ export async function approveRequestWithTrustedAdmin(
   requestId: string,
 ) {
   const { auth, db } = getAdminServices();
-  const decoded = await auth.verifyIdToken(idToken);
+  const decoded = await auth.verifyIdToken(idToken, true);
   if (decoded.admin !== true) throw new Error("Administrator authorization is required.");
 
   const userProfile = await db.collection("users").doc(decoded.uid).get();
-  if (!userProfile.exists || userProfile.data()?.role !== "administrator") {
+  if (
+    !userProfile.exists
+    || userProfile.data()?.role !== "administrator"
+    || userProfile.data()?.status === "disabled"
+  ) {
     throw new Error("Administrator authorization is required.");
   }
 
@@ -110,10 +114,14 @@ export async function rejectRequestWithTrustedAdmin(
   reason: string,
 ) {
   const { auth, db } = getAdminServices();
-  const decoded = await auth.verifyIdToken(idToken);
+  const decoded = await auth.verifyIdToken(idToken, true);
   if (decoded.admin !== true) throw new Error("Administrator authorization is required.");
   const userProfile = await db.collection("users").doc(decoded.uid).get();
-  if (!userProfile.exists || userProfile.data()?.role !== "administrator") {
+  if (
+    !userProfile.exists
+    || userProfile.data()?.role !== "administrator"
+    || userProfile.data()?.status === "disabled"
+  ) {
     throw new Error("Administrator authorization is required.");
   }
   if (!reason.trim()) throw new Error("A rejection reason is required.");

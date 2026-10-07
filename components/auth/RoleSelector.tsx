@@ -6,7 +6,7 @@ const roles = [
   ["Donor", "Manage eligibility, donations and emergency opportunities.", "♡"],
   ["Hospital", "Request blood and coordinate emergency requirements.", "＋"],
   ["Blood Bank", "Manage inventory, requests and distribution.", "◒"],
-  ["Administrator", "Monitor the entire HemoLink network.", "⌘"],
+  ["Administrator", "Administrator access requires approval.", "⌘"],
 ];
 
 export function RoleSelector() {

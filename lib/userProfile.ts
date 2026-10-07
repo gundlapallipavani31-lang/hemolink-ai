@@ -16,7 +16,12 @@ export async function createUserProfile({
   phone,
   requestedRole,
 }: CreateUserProfileInput) {
-  const role = requestedRole === "Administrator" ? "pending" : requestedRole;
+  const role =
+    requestedRole === "Administrator"
+      ? "pending"
+      : requestedRole === "Blood Bank"
+        ? "bloodBank"
+        : requestedRole.toLowerCase();
 
   await setDoc(
     doc(db, "users", uid),

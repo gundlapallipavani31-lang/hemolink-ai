@@ -22,6 +22,7 @@ const links = {
   ],
   hospital: [
     ["Overview", "/hospital"],
+    ["Find Blood", "/find-blood"],
     ["Profile", "/hospital/profile"],
     ["Patients", "/hospital/patients"],
     ["Availability", "/hospital/availability"],
@@ -40,6 +41,7 @@ const links = {
     ["Overview", "/admin"],
     ["Requests", "/admin/requests"],
     ["Users", "/admin/users"],
+    ["Donors", "/admin/donors"],
     ["Organizations", "/admin/organizations"],
     ["Inventory", "/admin/inventory"],
     ["AI intelligence", "/admin/ai"],

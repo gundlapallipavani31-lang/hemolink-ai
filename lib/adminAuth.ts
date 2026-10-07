@@ -3,11 +3,15 @@ import { getAdminServices } from "@/lib/firebaseAdmin";
 
 export async function requireTrustedAdmin(idToken: string) {
   const { auth, db } = getAdminServices();
-  const decoded = await auth.verifyIdToken(idToken);
+  const decoded = await auth.verifyIdToken(idToken, true);
   if (decoded.admin !== true) throw new Error("Administrator authorization is required.");
 
   const profile = await db.collection("users").doc(decoded.uid).get();
-  if (!profile.exists || profile.data()?.role !== "administrator") {
+  if (
+    !profile.exists
+    || profile.data()?.role !== "administrator"
+    || profile.data()?.status === "disabled"
+  ) {
     throw new Error("Administrator authorization is required.");
   }
   return { auth, db, decoded };
@@ -22,7 +26,14 @@ export function bearerToken(request: Request) {
 
 export function adminErrorResponse(error: unknown) {
   const message = error instanceof Error ? error.message : "The operation could not be completed.";
-  const status = message.includes("authorization") ? 403 : message.includes("not found") ? 404 : 400;
+  const authError = error as { code?: string };
+  const status = authError.code === "auth/id-token-revoked" || authError.code === "auth/invalid-id-token"
+    ? 401
+    : message.includes("authorization")
+      ? 403
+      : message.includes("not found")
+        ? 404
+        : 400;
   return Response.json({ error: message }, { status });
 }
 

@@ -7,6 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { getOrganization, updateOrganizationProfile } from "@/lib/organization";
 import { createPatient, deletePatient, listPatients, type PatientInput } from "@/lib/patients";
 import type { Organization, Patient } from "@/types/domain";
+import { OrganizationSetupRequest } from "./OrganizationSetupRequest";
 
 function useOrganization() {
   const { userProfile } = useAuth(); const [organization, setOrganization] = useState<Organization | null>(null); const [loading, setLoading] = useState(false); const [error, setError] = useState("");
@@ -14,7 +15,30 @@ function useOrganization() {
   return { organization, setOrganization, loading, error, setError };
 }
 
-export function HospitalDashboard() { const { userProfile } = useAuth(); return <main className="mx-auto max-w-7xl px-5 py-10 sm:px-8 lg:px-10"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-medical">Hospital workspace</p><h1 className="mt-3 text-4xl font-semibold tracking-[-0.05em] text-foreground">{userProfile?.name || "Hospital operations"}</h1><p className="mt-4 max-w-2xl text-sm leading-6 text-foreground-muted">A focused place for your organization’s patient coordination and future blood workflows.</p><div className="mt-10 grid gap-4 sm:grid-cols-3">{[["Verification", "Pending"], ["Open requests", "Coming next"], ["Recent activity", "Coming next"]].map(([label, value]) => <div key={label} className="rounded-[1rem] border border-border bg-surface p-5 shadow-xs"><p className="text-xs uppercase tracking-[0.14em] text-foreground-subtle">{label}</p><p className="mt-3 text-xl font-semibold text-primary">{value}</p></div>)}</div><div className="mt-8 rounded-[1rem] border border-border bg-surface p-6"><h2 className="font-semibold text-foreground">Emergency request workflow</h2><p className="mt-2 text-sm text-foreground-muted">Request creation and live inventory coordination will be connected in the blood-bank phase.</p><Link href="/hospital/requests/new" className="mt-5 inline-flex rounded-lg border border-border-strong px-4 py-2.5 text-sm font-semibold text-primary">View upcoming workflow</Link></div></main>; }
+export function HospitalDashboard() {
+  const { userProfile } = useAuth();
+  const { organization } = useOrganization();
+  const onboardingStatus = !userProfile?.organizationId
+    ? "Setup required"
+    : organization?.verificationStatus === "verified"
+      ? "Active"
+      : organization?.verificationStatus === "rejected"
+        ? "Suspended"
+        : "Pending verification";
+  const actions = [
+    ["/find-blood", "Find blood", "Search current participating inventory."],
+    ["/hospital/requests/new", "New request", "Submit a requirement for review."],
+    ["/hospital/patients", "Patients", "Maintain minimal patient references."],
+    ["/hospital/profile", "Hospital profile", "Review organization information."],
+  ];
+  return <main className="mx-auto max-w-7xl px-5 py-10 sm:px-8 lg:px-10">
+    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-medical">Hospital workspace</p>
+    <h1 className="mt-3 text-4xl font-semibold tracking-[-0.05em] text-foreground">{userProfile?.name || "Hospital operations"}</h1>
+    <p className="mt-4 max-w-2xl text-sm leading-6 text-foreground-muted">Coordinate patient references, find recorded blood availability, and submit requests for authorized review.</p>
+    <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4"><div className="rounded-[1rem] border border-border bg-surface p-5 shadow-xs"><p className="text-xs uppercase tracking-[0.14em] text-foreground-subtle">Onboarding status</p><p className="mt-3 text-xl font-semibold text-primary">{onboardingStatus}</p><p className="mt-2 text-sm text-foreground-muted">{!userProfile?.organizationId ? "Organization setup pending administrator verification." : organization?.name || "Organization details are being reviewed."}</p></div>{actions.map(([href, title, description]) => <Link key={href} href={href} className="rounded-[1rem] border border-border bg-surface p-5 shadow-xs transition hover:-translate-y-0.5 hover:border-primary/30"><p className="font-semibold text-primary">{title}</p><p className="mt-2 text-sm leading-6 text-foreground-muted">{description}</p></Link>)}</div>
+    <div className="mt-8 rounded-[1rem] border border-border bg-surface p-6"><h2 className="font-semibold text-foreground">Request status</h2><p className="mt-2 text-sm leading-6 text-foreground-muted">Your submitted requests and approval history are available in the requests workspace.</p><Link href="/hospital/requests" className="mt-5 inline-flex rounded-lg border border-border-strong px-4 py-2.5 text-sm font-semibold text-primary">View requests</Link>{!userProfile?.organizationId && <><h2 className="mt-8 font-semibold text-foreground">Hospital organization setup</h2><p className="mt-2 text-sm leading-6 text-foreground-muted">A hospital organization is not created automatically. Submit details for administrator verification before organization access is granted.</p><OrganizationSetupRequest /></>}</div>
+  </main>;
+}
 
 export function HospitalProfilePage() { const { organization, setOrganization, loading, error, setError } = useOrganization(); const [saving, setSaving] = useState(false); const [saved, setSaved] = useState(""); if (loading) return <LoadingState title="Loading organization profile" />; if (!organization) return <main className="mx-auto max-w-3xl px-5 py-10 sm:px-8"><EmptyState title="Organization membership is not configured" description="A trusted hospital organization membership is required before organization data can be displayed or edited." /></main>; const currentOrganization = organization; async function submit(event: FormEvent<HTMLFormElement>) { event.preventDefault(); const data = new FormData(event.currentTarget); setSaving(true); setError(""); try { const next = { name: String(data.get("name") || "").trim(), legalName: String(data.get("legalName") || "").trim(), phone: String(data.get("phone") || "").trim(), email: String(data.get("email") || "").trim(), address: String(data.get("address") || "").trim(), city: String(data.get("city") || "").trim(), state: String(data.get("state") || "").trim(), country: String(data.get("country") || "").trim() }; await updateOrganizationProfile(currentOrganization.id, next); setOrganization({ ...currentOrganization, ...next }); setSaved("Organization profile saved."); } catch { setError("We could not save this profile."); } finally { setSaving(false); } } return <main className="mx-auto max-w-3xl px-5 py-10 sm:px-8"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-medical">Hospital profile</p><h1 className="mt-3 text-4xl font-semibold text-foreground">Organization information</h1><form onSubmit={submit} className="mt-8 grid gap-5 rounded-[1rem] border border-border bg-surface p-6 sm:grid-cols-2">{(["name", "legalName", "phone", "email", "address", "city", "state", "country"] as const).map((field) => <label key={field} className="grid gap-2 text-sm font-medium capitalize">{field.replace(/([A-Z])/g, " $1")}<input name={field} defaultValue={currentOrganization[field] || ""} className="h-12 rounded-lg border border-border-strong px-3" /></label>)}<div className="sm:col-span-2"><p className="text-sm text-foreground-muted">Verification status: <span className="font-semibold capitalize text-primary">{currentOrganization.verificationStatus}</span></p>{error && <p role="alert" className="mt-3 text-sm text-danger">{error}</p>}{saved && <p role="status" className="mt-3 text-sm text-success">{saved}</p>}<button disabled={saving} className="mt-5 h-12 rounded-lg bg-primary px-5 text-sm font-semibold text-white disabled:opacity-60">{saving ? "Saving…" : "Save profile"}</button></div></form></main>; }
 

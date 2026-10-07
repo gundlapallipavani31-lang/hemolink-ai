@@ -12,6 +12,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ui
       return Response.json({ error: "A disabled boolean is required." }, { status: 400 });
     }
     await auth.updateUser(uid, { disabled: body.disabled });
+    if (body.disabled) {
+      await auth.revokeRefreshTokens(uid);
+    }
     await db.collection("users").doc(uid).set({
       status: body.disabled ? "disabled" : "active",
       updatedAt: FieldValue.serverTimestamp(),

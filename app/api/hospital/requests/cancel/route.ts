@@ -8,10 +8,15 @@ export async function POST(request: Request) {
     const token = bearerToken(request);
     if (!token) return Response.json({ error: "Authentication required." }, { status: 401 });
     const { auth, db } = getAdminServices();
-    const decoded = await auth.verifyIdToken(token);
+    const decoded = await auth.verifyIdToken(token, true);
     const profileSnapshot = await db.collection("users").doc(decoded.uid).get();
     const profile = profileSnapshot.data();
-    if (!profileSnapshot.exists || profile?.role !== "hospital" || !profile.organizationId) {
+    if (
+      !profileSnapshot.exists
+      || profile?.role !== "hospital"
+      || profile.status === "disabled"
+      || !profile.organizationId
+    ) {
       throw new Error("Hospital authorization is required.");
     }
     const body = (await request.json()) as { requestId?: string };
