@@ -1,4 +1,5 @@
 import type { BloodComponent, BloodGroup } from "@/types/domain";
+import { operationalAvailableUnits } from "@/lib/inventoryAvailability";
 import { analyzeExpiryRisk } from "./expiryRisk";
 import { forecastDemand } from "./demandForecast";
 import { analyzeShortage } from "./shortageRisk";
@@ -22,8 +23,8 @@ export function analyzeRecords(records: AIRecord) {
     .filter((item) => !["fulfilled", "rejected", "cancelled"].includes(item.status))
     .map((item) => {
       const available = records.inventory
-        .filter((stock) => stock.status === "available" && stock.bloodGroup === item.bloodGroup && stock.componentType === item.componentType && (!item.rhFactor || stock.rhFactor === item.rhFactor))
-        .reduce((sum, stock) => sum + stock.unitsAvailable, 0);
+        .filter((stock) => stock.bloodGroup === item.bloodGroup && stock.componentType === item.componentType && (!item.rhFactor || stock.rhFactor === item.rhFactor))
+        .reduce((sum, stock) => sum + operationalAvailableUnits(stock), 0);
       return { ...item, signal: operationalPriority(item, available) };
     })
     .sort((left, right) => {

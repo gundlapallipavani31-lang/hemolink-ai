@@ -4,7 +4,6 @@ import {
   doc,
   getDoc,
   getDocs,
-  orderBy,
   query,
   serverTimestamp,
   updateDoc,
@@ -12,6 +11,11 @@ import {
   Timestamp,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import {
+  inventoryDate,
+  inventoryExpiryState,
+  validateInventoryWrite,
+} from "@/lib/inventoryAvailability";
 import type {
   BloodComponent,
   BloodGroup,
@@ -39,8 +43,8 @@ function toInventory(id: string, data: Record<string, unknown>): BloodInventory 
     componentType: data.componentType as BloodComponent,
     bloodGroup: data.bloodGroup as BloodGroup,
     rhFactor: data.rhFactor as RhFactor,
-    unitsAvailable: typeof data.unitsAvailable === "number" ? data.unitsAvailable : 0,
-    unitsReserved: typeof data.unitsReserved === "number" ? data.unitsReserved : 0,
+    unitsAvailable: data.unitsAvailable as number,
+    unitsReserved: data.unitsReserved as number,
     collectionDate: data.collectionDate as BloodInventory["collectionDate"],
     expiryDate: data.expiryDate as BloodInventory["expiryDate"],
     storageLocation: typeof data.storageLocation === "string" ? data.storageLocation : "",
@@ -55,10 +59,15 @@ export async function listBloodInventory(bloodBankId: string) {
     query(
       collection(db, "bloodInventory"),
       where("bloodBankId", "==", bloodBankId),
-      orderBy("expiryDate", "asc"),
     ),
   );
-  return snapshot.docs.map((item) => toInventory(item.id, item.data()));
+  return snapshot.docs
+    .map((item) => toInventory(item.id, item.data()))
+    .sort((left, right) => {
+      const leftExpiry = inventoryDate(left.expiryDate)?.getTime() ?? Number.MAX_SAFE_INTEGER;
+      const rightExpiry = inventoryDate(right.expiryDate)?.getTime() ?? Number.MAX_SAFE_INTEGER;
+      return leftExpiry - rightExpiry;
+    });
 }
 
 export async function getBloodInventory(inventoryId: string, bloodBankId: string) {
@@ -71,6 +80,8 @@ export async function createBloodInventory(
   bloodBankId: string,
   input: InventoryInput,
 ) {
+  const validationError = validateInventoryWrite({ ...input, bloodBankId });
+  if (validationError) throw new Error(validationError);
   return addDoc(collection(db, "bloodInventory"), {
     ...input,
     bloodBankId,
@@ -88,6 +99,12 @@ export async function updateBloodInventory(
 ) {
   const existing = await getBloodInventory(inventoryId, bloodBankId);
   if (!existing) throw new Error("Inventory item not found.");
+  const validationError = validateInventoryWrite({
+    ...existing,
+    ...input,
+    bloodBankId,
+  });
+  if (validationError) throw new Error(validationError);
 
   const update = {
     ...input,
@@ -103,10 +120,5 @@ export async function updateBloodInventory(
 }
 
 export function getExpiryState(expiryDate: BloodInventory["expiryDate"]) {
-  if (!expiryDate) return "unknown" as const;
-  const days = (expiryDate.toDate().getTime() - Date.now()) / 86_400_000;
-  if (days < 0) return "expired" as const;
-  if (days <= 7) return "within7Days" as const;
-  if (days <= 30) return "within30Days" as const;
-  return "normal" as const;
+  return inventoryExpiryState(expiryDate);
 }

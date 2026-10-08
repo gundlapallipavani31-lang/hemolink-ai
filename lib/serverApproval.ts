@@ -2,6 +2,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import type { BloodRequest, FulfillmentAllocation } from "@/types/domain";
 import { getAdminServices } from "@/lib/firebaseAdmin";
 import { createNotification } from "@/lib/notifications";
+import { inventoryDate, operationalAvailableUnits } from "@/lib/inventoryAvailability";
 
 export async function approveRequestWithTrustedAdmin(
   idToken: string,
@@ -33,26 +34,25 @@ export async function approveRequestWithTrustedAdmin(
       db.collection("bloodInventory")
         .where("bloodGroup", "==", request.bloodGroup),
     );
+    const now = new Date();
     const eligible = inventorySnapshot.docs
       .filter((item) => {
       const data = item.data();
       return (
-        data.status === "available" &&
+        operationalAvailableUnits(data, now) > 0 &&
         typeof data.bloodBankId === "string" &&
         data.bloodBankId.length > 0 &&
         data.componentType === request.componentType &&
-        (!request.rhFactor || data.rhFactor === request.rhFactor) &&
-        data.unitsAvailable > 0 &&
-        (!data.expiryDate || data.expiryDate.toMillis() >= Date.now())
+        (!request.rhFactor || data.rhFactor === request.rhFactor)
       );
       })
       .sort((left, right) => {
-        const leftExpiry = left.data().expiryDate?.toMillis?.() ?? Number.MAX_SAFE_INTEGER;
-        const rightExpiry = right.data().expiryDate?.toMillis?.() ?? Number.MAX_SAFE_INTEGER;
+        const leftExpiry = inventoryDate(left.data().expiryDate)?.getTime() ?? Number.MAX_SAFE_INTEGER;
+        const rightExpiry = inventoryDate(right.data().expiryDate)?.getTime() ?? Number.MAX_SAFE_INTEGER;
         return leftExpiry - rightExpiry;
       });
     const available = eligible.reduce(
-      (total, item) => total + Number(item.data().unitsAvailable || 0),
+      (total, item) => total + operationalAvailableUnits(item.data(), now),
       0,
     );
     if (available < request.unitsRequested) {
@@ -64,7 +64,7 @@ export async function approveRequestWithTrustedAdmin(
     for (const item of eligible) {
       if (remaining === 0) break;
       const data = item.data();
-      const allocated = Math.min(remaining, Number(data.unitsAvailable));
+      const allocated = Math.min(remaining, operationalAvailableUnits(data, now));
       allocations.push({
         bloodBankId: data.bloodBankId,
         inventoryId: item.id,

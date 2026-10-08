@@ -1,4 +1,5 @@
 import type { BloodComponent, BloodGroup, BloodInventory } from "@/types/domain";
+import { operationalAvailableUnits } from "@/lib/inventoryAvailability";
 import type { ForecastResult } from "./types";
 
 export type ShortageRisk = {
@@ -30,7 +31,7 @@ export function analyzeShortage(
 ): ShortageRisk {
   const availableUnits = inventory
     .filter((item) => item.bloodGroup === forecast.bloodGroup && item.componentType === forecast.componentType && item.status === "available")
-    .reduce((sum, item) => sum + item.unitsAvailable, 0);
+    .reduce((sum, item) => sum + operationalAvailableUnits(item), 0);
   if (forecast.estimatedDemand === null) {
     return { bloodGroup: forecast.bloodGroup, componentType: forecast.componentType, level: "insufficient", availableUnits, forecastUnits: null, explanation: "Insufficient historical demand data for a shortage estimate.", action: "Collect more dated request history before acting on a shortage signal." };
   }

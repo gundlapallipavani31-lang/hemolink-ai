@@ -1,4 +1,8 @@
 import type { BloodInventory } from "@/types/domain";
+import {
+  inventoryExpiryDays,
+  operationalAvailableUnits,
+} from "@/lib/inventoryAvailability";
 
 export type ExpiryRisk = {
   expiringWithin7Days: BloodInventory[];
@@ -13,13 +17,24 @@ export function analyzeExpiryRisk(inventory: BloodInventory[], now = new Date())
   const expiringWithin30Days: BloodInventory[] = [];
   const expired: BloodInventory[] = [];
   inventory.forEach((item) => {
-    const expiry = item.expiryDate?.toDate();
-    if (!expiry) return;
-    const days = (expiry.getTime() - now.getTime()) / 86_400_000;
+    const days = inventoryExpiryDays(item.expiryDate, now);
+    if (days === null) return;
     if (days < 0) expired.push(item);
-    else if (days <= 7) expiringWithin7Days.push(item);
-    else if (days <= 30) expiringWithin30Days.push(item);
+    else if (operationalAvailableUnits(item, now) > 0 && days <= 7) {
+      expiringWithin7Days.push(item);
+    } else if (operationalAvailableUnits(item, now) > 0 && days <= 30) {
+      expiringWithin30Days.push(item);
+    }
   });
-  const unitsAtRisk = [...expiringWithin7Days, ...expiringWithin30Days].reduce((sum, item) => sum + item.unitsAvailable, 0);
-  return { expiringWithin7Days, expiringWithin30Days, expired, unitsAtRisk, explanation: unitsAtRisk ? "High expiry exposure" : "No inventory is currently within the 30-day expiry window." };
+  const unitsAtRisk = [...expiringWithin7Days, ...expiringWithin30Days]
+    .reduce((sum, item) => sum + operationalAvailableUnits(item, now), 0);
+  return {
+    expiringWithin7Days,
+    expiringWithin30Days,
+    expired,
+    unitsAtRisk,
+    explanation: unitsAtRisk
+      ? `${unitsAtRisk} currently usable, unreserved units expire within 30 days.`
+      : "No currently usable, unreserved inventory is within the 30-day expiry window.",
+  };
 }

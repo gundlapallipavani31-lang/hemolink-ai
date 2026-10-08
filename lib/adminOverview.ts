@@ -1,4 +1,8 @@
 import { getAdminServices } from "@/lib/firebaseAdmin";
+import {
+  isInventoryExpiringWithin,
+  operationalAvailableUnits,
+} from "@/lib/inventoryAvailability";
 
 export async function getAdminOverview() {
   const { db } = getAdminServices();
@@ -15,22 +19,24 @@ export async function getAdminOverview() {
   const organizations = organizationsSnapshot.docs.map((item) => item.data());
   const inventory = inventorySnapshot.docs.map((item) => item.data());
   const requests = requestsSnapshot.docs.map((item) => item.data());
-  const now = Date.now();
+  const now = new Date();
 
   return {
     metrics: {
       donors: users.filter((item) => item.role === "donor").length,
       hospitals: organizations.filter((item) => item.type === "hospital").length,
       bloodBanks: organizations.filter((item) => item.type === "bloodBank").length,
-      availableUnits: inventory.reduce((total, item) => total + Number(item.unitsAvailable || 0), 0),
+      availableUnits: inventory.reduce(
+        (total, item) => total + operationalAvailableUnits(item, now),
+        0,
+      ),
       pendingRequests: requests.filter((item) => ["submitted", "under_review"].includes(item.status)).length,
       emergencyRequests: requests.filter((item) => item.urgency === "emergency" && !["fulfilled", "cancelled", "rejected"].includes(item.status)).length,
       approvedRequests: requests.filter((item) => item.status === "approved").length,
       rejectedRequests: requests.filter((item) => item.status === "rejected").length,
-      expiringInventory: inventory.filter((item) => {
-        const expiry = item.expiryDate?.toMillis?.();
-        return typeof expiry === "number" && expiry >= now && expiry <= now + 30 * 86_400_000;
-      }).length,
+      expiringInventory: inventory.filter((item) =>
+        isInventoryExpiringWithin(item, 30, now),
+      ).length,
     },
     activity: auditSnapshot.docs.map((item) => ({
       id: item.id,

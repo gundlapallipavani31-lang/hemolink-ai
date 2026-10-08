@@ -1,6 +1,7 @@
 import { FieldValue } from "firebase-admin/firestore";
 import type { BloodRequest, FulfillmentAllocation } from "@/types/domain";
 import { getAdminServices } from "@/lib/firebaseAdmin";
+import { isOperationallyEligibleInventory } from "@/lib/inventoryAvailability";
 
 type OrganizationActor = {
   uid: string;
@@ -267,11 +268,7 @@ export async function dispatchReservedUnits(
       if (inventory.bloodBankId !== actor.organizationId || reservedUnits < dispatch.units) {
         throw new Error("The reserved inventory no longer matches this dispatch.");
       }
-      const expiry = inventory.expiryDate?.toMillis?.();
-      if (
-        inventory.status !== "available"
-        || (typeof expiry === "number" && expiry < Date.now())
-      ) {
+      if (!isOperationallyEligibleInventory(inventory)) {
         throw new Error("This reserved inventory is no longer eligible for dispatch.");
       }
       return { ...dispatch, reservedUnits };
