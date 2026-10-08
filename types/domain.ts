@@ -134,6 +134,7 @@ export type BloodInventory = {
   status: InventoryStatus;
   createdAt?: FirebaseTimestamp;
   updatedAt?: FirebaseTimestamp;
+  ownerVerified?: boolean;
 };
 
 export type RequestStatus =
@@ -223,14 +224,17 @@ export type DonationStatus = "scheduled" | "completed" | "rejected" | "cancelled
 export type Donation = {
   id: string;
   donorId: string;
-  bloodBankId: string;
+  bloodBankId?: string;
   componentType: BloodComponent;
   bloodGroup: BloodGroup;
-  rhFactor: RhFactor;
-  unitsCollected: number;
+  rhFactor?: RhFactor;
+  unitsCollected?: number;
   donationDate: FirebaseTimestamp;
   status: DonationStatus;
   verifiedBy?: string;
+  opportunityId?: string;
+  organizationId?: string;
+  recordedBy?: string;
   createdAt?: FirebaseTimestamp;
   updatedAt?: FirebaseTimestamp;
 };

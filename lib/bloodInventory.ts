@@ -49,6 +49,7 @@ function toInventory(id: string, data: Record<string, unknown>): BloodInventory 
     expiryDate: data.expiryDate as BloodInventory["expiryDate"],
     storageLocation: typeof data.storageLocation === "string" ? data.storageLocation : "",
     status: data.status as InventoryStatus,
+    ownerVerified: true,
     createdAt: data.createdAt as BloodInventory["createdAt"],
     updatedAt: data.updatedAt as BloodInventory["updatedAt"],
   };

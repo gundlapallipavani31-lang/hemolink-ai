@@ -35,6 +35,7 @@ export type InventoryEligibilityInput = {
   collectionDate?: unknown;
   expiryDate?: unknown;
   storageLocation?: unknown;
+  ownerVerified?: unknown;
 };
 
 export type InventoryExpiryState =
@@ -131,7 +132,8 @@ export function isOperationallyEligibleInventory(
   inventory: InventoryEligibilityInput,
   now = new Date(),
 ): boolean {
-  return isStructurallyValidInventory(inventory)
+  return inventory.ownerVerified === true
+    && isStructurallyValidInventory(inventory)
     && inventory.status === "available"
     && isInventoryExpiryCurrent(inventory.expiryDate, now);
 }
@@ -157,6 +159,7 @@ export function inventoryEligibilityMessage(
   now = new Date(),
 ) {
   const expiryState = inventoryExpiryState(inventory.expiryDate, now);
+  if (inventory.ownerVerified !== true) return "Not usable: blood-bank ownership is not verified";
   if (expiryState === "unknown") return "Needs review: expiry missing or invalid";
   if (expiryState === "expired") return "Not usable: expired";
   if (!isStructurallyValidInventory(inventory)) return "Inventory data needs review";
