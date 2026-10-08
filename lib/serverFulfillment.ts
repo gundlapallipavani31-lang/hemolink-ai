@@ -186,7 +186,7 @@ export async function dispatchReservedUnits(
   requestId: string,
   units: number,
 ) {
-  if (!Number.isInteger(units) || units <= 0) {
+  if (!Number.isSafeInteger(units) || units <= 0) {
     throw new Error("Dispatch quantity must be a positive whole number.");
   }
   const actor = await requireOrganizationActor(idToken, "bloodBank");
@@ -308,7 +308,7 @@ export async function confirmRequestReceipt(
   requestId: string,
   units: number,
 ) {
-  if (!Number.isInteger(units) || units <= 0) {
+  if (!Number.isSafeInteger(units) || units <= 0) {
     throw new Error("Receipt quantity must be a positive whole number.");
   }
   const actor = await requireOrganizationActor(idToken, "hospital");
@@ -321,14 +321,68 @@ export async function confirmRequestReceipt(
       throw new Error("Hospital authorization is required for this request.");
     }
     ensureOpenRequest(request);
-    const dispatched = Number(request.unitsDispatched || 0);
-    const received = Number(request.unitsFulfilled || 0);
+    if (!["dispatched", "partially_fulfilled"].includes(request.status)) {
+      throw new Error("Receipt can only be confirmed after a recorded dispatch.");
+    }
+    if (!Number.isSafeInteger(request.unitsRequested) || request.unitsRequested <= 0) {
+      throw new Error("Request quantity is invalid.");
+    }
+    const allocations = readAllocations(request);
+    if (allocations.length === 0 || allocations.some((allocation) =>
+      typeof allocation.bloodBankId !== "string" || !allocation.bloodBankId
+      || typeof allocation.inventoryId !== "string" || !allocation.inventoryId
+      || !Number.isSafeInteger(allocation.unitsReserved) || allocation.unitsReserved <= 0
+      || !Number.isSafeInteger(allocation.unitsDispatched) || allocation.unitsDispatched < 0
+      || allocation.unitsDispatched > allocation.unitsReserved
+      || !Number.isSafeInteger(allocation.unitsReceived) || allocation.unitsReceived < 0
+      || allocation.unitsReceived > allocation.unitsDispatched
+      || !["reserved", "preparing", "dispatched"].includes(allocation.status),
+    )) {
+      throw new Error("Server-recorded fulfillment allocations are invalid.");
+    }
+    const allocated = allocations.reduce((total, allocation) => total + allocation.unitsReserved, 0);
+    const dispatchedFromAllocations = allocations.reduce((total, allocation) => total + allocation.unitsDispatched, 0);
+    const receivedFromAllocations = allocations.reduce((total, allocation) => total + allocation.unitsReceived, 0);
+    const dispatched = request.unitsDispatched;
+    const received = request.unitsFulfilled;
+    if (
+      allocated !== request.unitsRequested
+      || typeof dispatched !== "number" || !Number.isSafeInteger(dispatched) || dispatched <= 0
+      || dispatchedFromAllocations !== dispatched
+      || !Number.isSafeInteger(received) || received < 0
+      || receivedFromAllocations !== received
+    ) {
+      throw new Error("Recorded dispatch and allocation totals do not reconcile.");
+    }
+    const dispatchEvents = await transaction.get(
+      actor.db.collection("bloodRequestEvents")
+        .where("requestId", "==", requestId)
+        .where("eventType", "==", "dispatched"),
+    );
+    let dispatchedFromEvents = 0;
+    const allocatedBloodBanks = new Set(allocations.map((allocation) => allocation.bloodBankId));
+    for (const event of dispatchEvents.docs) {
+      const metadata = event.data().metadata;
+      const eventUnits = metadata?.units;
+      if (
+        typeof event.data().actorUserId !== "string"
+        || !event.data().actorUserId
+        || typeof metadata?.bloodBankId !== "string"
+        || !allocatedBloodBanks.has(metadata.bloodBankId)
+        || !Number.isSafeInteger(eventUnits) || eventUnits <= 0
+      ) {
+        throw new Error("Trusted dispatch evidence is invalid.");
+      }
+      dispatchedFromEvents += eventUnits;
+    }
+    if (dispatchedFromEvents !== dispatched) {
+      throw new Error("Trusted dispatch evidence does not match the recorded dispatch total.");
+    }
     const outstanding = dispatched - received;
     const remainingRequested = request.unitsRequested - received;
     if (units > outstanding || units > remainingRequested) {
       throw new Error(`Receipt quantity cannot exceed the ${Math.max(0, Math.min(outstanding, remainingRequested))} units currently dispatched and still requested.`);
     }
-    const allocations = readAllocations(request);
     let remainingToReceive = units;
     const nextAllocations = allocations.map((allocation) => {
       if (remainingToReceive <= 0) return allocation;

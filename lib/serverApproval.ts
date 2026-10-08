@@ -3,6 +3,38 @@ import type { BloodRequest, FulfillmentAllocation } from "@/types/domain";
 import { getAdminServices } from "@/lib/firebaseAdmin";
 import { createNotification } from "@/lib/notifications";
 import { inventoryDate, operationalAvailableUnits } from "@/lib/inventoryAvailability";
+import type { BloodComponent, BloodGroup, RequestUrgency } from "@/types/domain";
+
+const bloodGroups: BloodGroup[] = ["A+", "A-", "B+", "B-", "O+", "O-", "AB+", "AB-"];
+const components: BloodComponent[] = [
+  "wholeBlood",
+  "redCells",
+  "plasma",
+  "platelets",
+  "cryoprecipitate",
+];
+const urgencies: RequestUrgency[] = ["routine", "urgent", "emergency"];
+
+function validateRequestForApproval(request: BloodRequest) {
+  if (!Number.isSafeInteger(request.unitsRequested) || request.unitsRequested <= 0) {
+    throw new Error("Request quantity must be a positive safe integer.");
+  }
+  if (!bloodGroups.includes(request.bloodGroup)) {
+    throw new Error("Request blood group is not supported.");
+  }
+  if (!components.includes(request.componentType)) {
+    throw new Error("Request blood component is not supported.");
+  }
+  if (!urgencies.includes(request.urgency)) {
+    throw new Error("Request urgency is not supported.");
+  }
+  if (!inventoryDate(request.neededBy)) {
+    throw new Error("Request needed-by date is missing or invalid.");
+  }
+  if (!["submitted", "under_review"].includes(request.status)) {
+    throw new Error("This request is not awaiting approval.");
+  }
+}
 
 export async function approveRequestWithTrustedAdmin(
   idToken: string,
@@ -26,9 +58,7 @@ export async function approveRequestWithTrustedAdmin(
     const requestSnapshot = await transaction.get(requestRef);
     if (!requestSnapshot.exists) throw new Error("Blood request not found.");
     const request = { ...requestSnapshot.data(), id: requestId } as BloodRequest;
-    if (!["submitted", "under_review"].includes(request.status)) {
-      throw new Error("This request is not awaiting approval.");
-    }
+    validateRequestForApproval(request);
 
     const inventorySnapshot = await transaction.get(
       db.collection("bloodInventory")
