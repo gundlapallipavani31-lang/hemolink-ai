@@ -101,6 +101,11 @@ service cloud.firestore {
       allow create, update, delete: if false;
     }
 
+    match /donorOpportunities/{opportunityId} {
+      allow read: if activeUser() && resource.data.donorId == request.auth.uid;
+      allow create, update, delete: if false;
+    }
+
     match /bloodInventory/{inventoryId} {
       allow read: if bloodBankMember(resource.data.bloodBankId) || trustedAdmin();
       allow create: if bloodBankMember(request.resource.data.bloodBankId)
@@ -158,39 +163,15 @@ service cloud.firestore {
 
     match /bloodRequests/{requestId} {
       allow read: if hospitalMember(resource.data.hospitalId) || trustedAdmin();
-      allow create: if hospitalMember(request.resource.data.hospitalId)
-        && request.resource.data.createdBy == request.auth.uid
-        && request.resource.data.status == "submitted"
-        && request.resource.data.unitsFulfilled == 0
-        && (
-          (
-            request.resource.data.urgency == "emergency"
-            && request.resource.data.patientId == null
-            && request.resource.data.patientName is string
-            && request.resource.data.caseId is string
-          )
-          || (
-            request.resource.data.patientId is string
-            && get(/databases/$(database)/documents/patients/$(request.resource.data.patientId)).data.hospitalId
-              == request.resource.data.hospitalId
-          )
-        );
-      allow update: if hospitalMember(resource.data.hospitalId)
-        && resource.data.createdBy == request.auth.uid
-        && request.resource.data.status == "cancelled"
-        && resource.data.status in ["submitted", "under_review"]
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["status", "updatedAt"]);
+      allow create: if false;
+      allow update: if false;
       allow delete: if false;
     }
 
     match /bloodRequestEvents/{eventId} {
       allow read: if trustedAdmin()
         || hospitalMember(get(/databases/$(database)/documents/bloodRequests/$(resource.data.requestId)).data.hospitalId);
-      allow create: if hospitalMember(
-          get(/databases/$(database)/documents/bloodRequests/$(request.resource.data.requestId)).data.hospitalId
-        )
-        && request.resource.data.actorUserId == request.auth.uid
-        && request.resource.data.eventType in ["created", "cancelled"];
+      allow create: if false;
       allow update, delete: if false;
     }
 

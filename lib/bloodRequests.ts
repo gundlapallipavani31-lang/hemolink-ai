@@ -1,12 +1,9 @@
 import {
-  addDoc,
   collection,
   doc,
   getDoc,
   getDocs,
   query,
-  serverTimestamp,
-  Timestamp,
   where,
 } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
@@ -22,7 +19,6 @@ export type BloodRequestInput = {
   patientId?: string;
   patientName?: string;
   caseId?: string;
-  hospitalName?: string;
   bloodGroup: BloodGroup;
   rhFactor?: RhFactor;
   componentType: BloodComponent;
@@ -31,10 +27,6 @@ export type BloodRequestInput = {
   neededBy: Date;
   notes?: string;
 };
-
-export function priorityForUrgency(urgency: RequestUrgency) {
-  return urgency === "emergency" ? 3 : urgency === "urgent" ? 2 : 1;
-}
 
 function toRequest(id: string, data: Record<string, unknown>): BloodRequest {
   return { ...data, id } as BloodRequest;
@@ -79,47 +71,20 @@ export async function listRequestEvents(requestId: string) {
   });
 }
 
-export async function createBloodRequest(
-  hospitalId: string,
-  createdBy: string,
-  input: BloodRequestInput,
-) {
-  if (input.patientId) {
-    const patient = await getDoc(doc(db, "patients", input.patientId));
-    if (!patient.exists() || patient.data().hospitalId !== hospitalId) {
-      throw new Error("Patient is not part of this hospital.");
-    }
+export async function createBloodRequest(input: BloodRequestInput) {
+  const currentUser = auth.currentUser;
+  if (!currentUser) throw new Error("Authentication required.");
+  const token = await currentUser.getIdToken();
+  const response = await fetch("/api/hospital/requests", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  const result = await response.json() as { id?: string; error?: string };
+  if (!response.ok || !result.id) {
+    throw new Error(result.error || "The request could not be created.");
   }
-
-  const request = await addDoc(collection(db, "bloodRequests"), {
-    hospitalId,
-    createdBy,
-    ...input,
-    patientId: input.patientId || null,
-    patientName: input.patientName?.trim() || null,
-    caseId: input.caseId?.trim() || null,
-    hospitalName: input.hospitalName?.trim() || null,
-    neededBy: Timestamp.fromDate(input.neededBy),
-    unitsFulfilled: 0,
-    priority: priorityForUrgency(input.urgency),
-    status: "submitted",
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  });
-
-  await addDoc(collection(db, "bloodRequestEvents"), {
-    requestId: request.id,
-    actorUserId: createdBy,
-    eventType: "created",
-    metadata: {
-      urgency: input.urgency,
-      patientName: input.patientName?.trim() || null,
-      caseId: input.caseId?.trim() || null,
-    },
-    createdAt: serverTimestamp(),
-  });
-
-  return request;
+  return { id: result.id };
 }
 
 export async function cancelBloodRequest(

@@ -231,12 +231,41 @@ export type Donation = {
   unitsCollected?: number;
   donationDate: FirebaseTimestamp;
   status: DonationStatus;
-  verifiedBy?: string;
   opportunityId?: string;
   organizationId?: string;
+  verifiedBy?: string;
   recordedBy?: string;
   createdAt?: FirebaseTimestamp;
   updatedAt?: FirebaseTimestamp;
+};
+
+export type DonorOpportunityStatus =
+  | "offered"
+  | "accepted"
+  | "declined"
+  | "scheduled"
+  | "completed"
+  | "cancelled";
+
+export type DonorOpportunity = {
+  id: string;
+  donorId: string;
+  organizationId: string;
+  organizationType: OrganizationType;
+  sourceRequestId?: string;
+  bloodGroup: BloodGroup;
+  city?: string;
+  appointmentDetails?: string;
+  appointmentAt?: FirebaseTimestamp;
+  status: DonorOpportunityStatus;
+  donorResponseAt?: FirebaseTimestamp;
+  scheduledAt?: FirebaseTimestamp;
+  completedAt?: FirebaseTimestamp;
+  createdAt?: FirebaseTimestamp;
+  updatedAt?: FirebaseTimestamp;
+  createdBy: string;
+  completedBy?: string;
+  donationId?: string;
 };
 
 export type MatchSourceType = "inventory" | "donor" | "partnerBloodBank";

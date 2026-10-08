@@ -146,7 +146,7 @@ export async function POST(request: Request) {
       payload.unitsCollected,
     ].join("|");
     const donationId = opportunityId
-      ? stableId("opportunity", opportunityId)
+      ? `donor-opportunity-${createHash("sha256").update(opportunityId).digest("hex")}`
       : stableId("manualdonation", identity);
     const donationRef = db.collection("donations").doc(donationId);
     const donorRef = db.collection("users").doc(donorId);
