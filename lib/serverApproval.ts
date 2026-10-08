@@ -1,5 +1,5 @@
 import { FieldValue } from "firebase-admin/firestore";
-import type { BloodRequest } from "@/types/domain";
+import type { BloodRequest, FulfillmentAllocation } from "@/types/domain";
 import { getAdminServices } from "@/lib/firebaseAdmin";
 import { createNotification } from "@/lib/notifications";
 
@@ -38,6 +38,8 @@ export async function approveRequestWithTrustedAdmin(
       const data = item.data();
       return (
         data.status === "available" &&
+        typeof data.bloodBankId === "string" &&
+        data.bloodBankId.length > 0 &&
         data.componentType === request.componentType &&
         (!request.rhFactor || data.rhFactor === request.rhFactor) &&
         data.unitsAvailable > 0 &&
@@ -58,10 +60,19 @@ export async function approveRequestWithTrustedAdmin(
     }
 
     let remaining = request.unitsRequested;
+    const allocations: FulfillmentAllocation[] = [];
     for (const item of eligible) {
       if (remaining === 0) break;
       const data = item.data();
       const allocated = Math.min(remaining, Number(data.unitsAvailable));
+      allocations.push({
+        bloodBankId: data.bloodBankId,
+        inventoryId: item.id,
+        unitsReserved: allocated,
+        unitsDispatched: 0,
+        unitsReceived: 0,
+        status: "reserved",
+      });
       transaction.update(item.ref, {
         unitsAvailable: Number(data.unitsAvailable) - allocated,
         unitsReserved: Number(data.unitsReserved || 0) + allocated,
@@ -72,7 +83,10 @@ export async function approveRequestWithTrustedAdmin(
 
     transaction.update(requestRef, {
       status: "approved",
-      unitsFulfilled: request.unitsRequested,
+      unitsFulfilled: 0,
+      unitsDispatched: 0,
+      fulfillmentAllocations: allocations,
+      assignedBloodBankIds: [...new Set(allocations.map((item) => item.bloodBankId))],
       updatedAt: FieldValue.serverTimestamp(),
     });
     const eventRef = db.collection("bloodRequestEvents").doc();

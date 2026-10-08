@@ -116,6 +116,8 @@ export type RequestStatus =
   | "submitted"
   | "under_review"
   | "approved"
+  | "preparing"
+  | "dispatched"
   | "rejected"
   | "matching"
   | "partially_fulfilled"
@@ -124,6 +126,17 @@ export type RequestStatus =
   | "expired";
 
 export type RequestUrgency = "routine" | "urgent" | "emergency";
+
+export type FulfillmentAllocationStatus = "reserved" | "preparing" | "dispatched";
+
+export type FulfillmentAllocation = {
+  bloodBankId: string;
+  inventoryId: string;
+  unitsReserved: number;
+  unitsDispatched: number;
+  unitsReceived: number;
+  status: FulfillmentAllocationStatus;
+};
 
 export type BloodRequest = {
   id: string;
@@ -141,6 +154,9 @@ export type BloodRequest = {
   urgency: RequestUrgency;
   priority: number;
   status: RequestStatus;
+  fulfillmentAllocations?: FulfillmentAllocation[];
+  assignedBloodBankIds?: string[];
+  unitsDispatched?: number;
   neededBy?: FirebaseTimestamp;
   notes?: string;
   createdAt?: FirebaseTimestamp;
@@ -158,6 +174,9 @@ export type BloodRequestEvent = {
     | "approved"
     | "rejected"
     | "reserved"
+    | "preparing"
+    | "dispatched"
+    | "received"
     | "fulfilled"
     | "cancelled";
   metadata?: Record<string, unknown>;

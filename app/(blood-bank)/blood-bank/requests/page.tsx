@@ -1,5 +1,5 @@
-import { BloodBankPlaceholder } from "@/components/blood-bank/BloodBankWorkspace";
+import { BloodBankRequestsPage } from "@/components/blood-bank/FulfillmentWorkspace";
 
 export default function Page() {
-  return <BloodBankPlaceholder title="Blood requests" description="Request approval and fulfillment workflows are reserved for a future phase." />;
+  return <BloodBankRequestsPage />;
 }
