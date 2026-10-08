@@ -112,8 +112,19 @@ service cloud.firestore {
         && request.resource.data.createdBy == request.auth.uid
         && request.resource.data.status == "submitted"
         && request.resource.data.unitsFulfilled == 0
-        && get(/databases/$(database)/documents/patients/$(request.resource.data.patientId)).data.hospitalId
-          == request.resource.data.hospitalId;
+        && (
+          (
+            request.resource.data.urgency == "emergency"
+            && request.resource.data.patientId == null
+            && request.resource.data.patientName is string
+            && request.resource.data.caseId is string
+          )
+          || (
+            request.resource.data.patientId is string
+            && get(/databases/$(database)/documents/patients/$(request.resource.data.patientId)).data.hospitalId
+              == request.resource.data.hospitalId
+          )
+        );
       allow update: if hospitalMember(resource.data.hospitalId)
         && resource.data.createdBy == request.auth.uid
         && request.resource.data.status == "cancelled"

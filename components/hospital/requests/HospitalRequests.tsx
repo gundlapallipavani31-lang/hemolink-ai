@@ -115,7 +115,7 @@ export function HospitalRequestList() {
       <div className="mt-8 flex flex-wrap gap-3 rounded-[1rem] border border-border bg-surface p-5">
         <select value={status} onChange={(event) => setStatus(event.target.value)} className="h-11 rounded-lg border border-border-strong bg-surface px-3 text-sm">
           <option value="">All statuses</option>
-          {['submitted', 'under_review', 'approved', 'rejected', 'cancelled', 'fulfilled'].map((item) => <option key={item} value={item}>{readable(item)}</option>)}
+          {['submitted', 'under_review', 'approved', 'preparing', 'dispatched', 'partially_fulfilled', 'rejected', 'cancelled', 'fulfilled'].map((item) => <option key={item} value={item}>{readable(item)}</option>)}
         </select>
         <select value={urgency} onChange={(event) => setUrgency(event.target.value)} className="h-11 rounded-lg border border-border-strong bg-surface px-3 text-sm">
           <option value="">All urgency</option>
@@ -289,10 +289,14 @@ export function HospitalEmergencyRequestForm() {
 
 export function HospitalRequestDetail() {
   const params = useParams<{ requestId: string }>();
+  const { firebaseUser } = useAuth();
   const [request, setRequest] = useState<BloodRequest | null>(null);
   const [events, setEvents] = useState<Record<string, unknown>[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [receiptError, setReceiptError] = useState("");
+  const [receiptMessage, setReceiptMessage] = useState("");
+  const [receiptSaving, setReceiptSaving] = useState(false);
 
   useEffect(() => {
     getBloodRequest(params.requestId)
@@ -307,12 +311,64 @@ export function HospitalRequestDetail() {
       .finally(() => setLoading(false));
   }, [params.requestId]);
 
+  async function confirmReceipt(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!firebaseUser || !request) return;
+    const form = event.currentTarget;
+    const units = Number(new FormData(form).get("units"));
+    const outstanding = Math.max(0, Number(request.unitsDispatched || 0) - request.unitsFulfilled);
+    if (!Number.isInteger(units) || units <= 0 || units > outstanding) {
+      setReceiptError(`Enter a positive whole number up to ${outstanding} dispatched units.`);
+      return;
+    }
+    setReceiptSaving(true);
+    setReceiptError("");
+    setReceiptMessage("");
+    try {
+      const token = await firebaseUser.getIdToken();
+      const response = await fetch("/api/hospital/requests/receipt", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ requestId: request.id, units }),
+      });
+      const body = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(body.error || "Receipt confirmation could not be saved.");
+      const [updatedRequest, updatedEvents] = await Promise.all([
+        getBloodRequest(request.id),
+        listRequestEvents(request.id),
+      ]);
+      setRequest(updatedRequest);
+      setEvents(updatedEvents);
+      setReceiptMessage("Receipt quantity recorded.");
+      form.reset();
+    } catch (reason) {
+      setReceiptError(reason instanceof Error ? reason.message : "Receipt confirmation could not be saved.");
+    } finally {
+      setReceiptSaving(false);
+    }
+  }
+
   if (loading) return <LoadingState title="Loading request" />;
   if (error) return <ErrorState description={error} />;
   if (!request) return <EmptyState title="Request not found" description="This request is not available." />;
 
   const statusText = request.status === "submitted" ? "Under Review" : readable(request.status);
   const reasonText = request.urgency === "emergency" ? "Limited matching inventory and short time-to-needed-by." : request.urgency === "urgent" ? "Inventory is constrained and the time window is narrow." : "Operationally routine with standard review.";
+  const unitsDispatched = request.unitsDispatched || 0;
+  const unitsAwaitingReceipt = Math.max(
+    0,
+    Math.min(unitsDispatched - request.unitsFulfilled, request.unitsRequested - request.unitsFulfilled),
+  );
+  const progressSteps = ["submitted", "approved", "preparing", "dispatched", "fulfilled"];
+  const progressIndex = request.status === "fulfilled"
+    ? 4
+    : request.status === "partially_fulfilled" || request.status === "dispatched"
+      ? 3
+      : request.status === "preparing"
+        ? 2
+        : ["approved"].includes(request.status)
+          ? 1
+          : 0;
 
   return (
     <main className="mx-auto max-w-4xl px-5 py-10 sm:px-8">
@@ -342,11 +398,39 @@ export function HospitalRequestDetail() {
           {request.urgency === "emergency" && <p className="mt-4 text-sm leading-6 text-foreground-muted">{reasonText}</p>}
         </div>
 
+        <section className="mt-6 rounded-lg border border-border bg-surface p-5">
+          <h2 className="font-semibold text-foreground">Fulfillment progress</h2>
+          <ol className="mt-4 grid gap-3 sm:grid-cols-5">
+            {progressSteps.map((step, index) => (
+              <li key={step} className={`rounded-lg border p-3 text-sm ${index <= progressIndex ? "border-primary/30 bg-soft-rose/40 text-primary" : "border-border bg-surface-muted text-foreground-subtle"}`}>
+                <span className="block text-xs uppercase tracking-[0.1em]">{index < progressIndex ? "Complete" : index === progressIndex ? "Current" : "Next"}</span>
+                <span className="mt-1 block font-semibold">{readable(step)}</span>
+              </li>
+            ))}
+          </ol>
+          {request.status === "partially_fulfilled" && <p className="mt-4 text-sm font-medium text-warning">Partial receipt confirmed: {request.unitsFulfilled} of {request.unitsRequested} requested units.</p>}
+          <div className="mt-5 grid gap-3 sm:grid-cols-2">
+            <div className="rounded-lg bg-surface-muted p-4"><p className="text-xs uppercase tracking-[0.1em] text-foreground-subtle">Dispatched</p><p className="mt-1 text-lg font-semibold text-foreground">{unitsDispatched} / {request.unitsRequested} units</p></div>
+            <div className="rounded-lg bg-surface-muted p-4"><p className="text-xs uppercase tracking-[0.1em] text-foreground-subtle">Received and confirmed</p><p className="mt-1 text-lg font-semibold text-foreground">{request.unitsFulfilled} / {request.unitsRequested} units</p></div>
+          </div>
+          {unitsAwaitingReceipt > 0 && ["dispatched", "partially_fulfilled"].includes(request.status) && (
+            <form onSubmit={confirmReceipt} className="mt-5 flex flex-wrap items-end gap-3 border-t border-border pt-5">
+              <label className="grid gap-1.5 text-sm font-medium">Confirm units received
+                <input required type="number" min={1} max={unitsAwaitingReceipt} step={1} name="units" className="h-11 w-44 rounded-lg border border-border-strong bg-surface px-3" />
+              </label>
+              <p className="pb-3 text-sm text-foreground-muted">{unitsAwaitingReceipt} dispatched units await confirmation.</p>
+              <button type="submit" disabled={receiptSaving} className="h-11 rounded-lg bg-primary px-4 text-sm font-semibold text-white disabled:opacity-60">{receiptSaving ? "Saving…" : "Confirm receipt"}</button>
+            </form>
+          )}
+          {receiptError && <p role="alert" className="mt-3 text-sm text-danger">{receiptError}</p>}
+          {receiptMessage && <p role="status" className="mt-3 text-sm text-success">{receiptMessage}</p>}
+        </section>
+
         {events.length > 0 && (
           <div className="mt-8">
             <h2 className="text-lg font-semibold text-foreground">Request activity</h2>
             <ul className="mt-4 space-y-3">
-              {events.map((event) => <li key={String(event.id)} className="rounded-lg border border-border bg-surface-muted p-4 text-sm text-foreground-muted">{String((event as { eventType?: string }).eventType || "Updated")} — {formatDateTime((event as { createdAt?: unknown }).createdAt)}</li>)}
+              {events.map((event) => <li key={String(event.id)} className="rounded-lg border border-border bg-surface-muted p-4 text-sm text-foreground-muted"><span className="font-semibold text-foreground">{readable(String(event.eventType || "Updated"))}</span> · {formatDateTime(event.createdAt)}{typeof event.actorUserId === "string" ? ` · Actor ${event.actorUserId}` : ""}{typeof (event.metadata as { units?: unknown } | undefined)?.units === "number" ? ` · ${String((event.metadata as { units: number }).units)} units` : ""}</li>)}
             </ul>
           </div>
         )}
