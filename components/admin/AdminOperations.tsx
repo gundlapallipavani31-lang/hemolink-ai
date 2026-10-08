@@ -13,6 +13,30 @@ import {
 type MetricSet = Record<string, number>;
 type AdminUser = { uid: string; email: string; name: string; role: string; requestedRole?: string | null; organizationId: string | null; status: string; disabled: boolean; createdAt: string | null };
 type Organization = { id: string; type: string; name: string; verificationStatus: string; memberCount: number; city?: string; state?: string };
+type OnboardingRequest = {
+  id: string;
+  type: "hospital" | "bloodBank";
+  requesterUserId: string;
+  requesterName: string;
+  requesterEmail: string;
+  requesterPhone: string;
+  name: string;
+  legalName?: string;
+  registrationNumber?: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+  city: string;
+  state?: string;
+  country?: string;
+  status: "pending" | "approved" | "rejected";
+  organizationId?: string;
+  rejectionReason?: string;
+  createdAt: string | null;
+  decidedAt: string | null;
+  decidedBy?: string;
+  decidedByName?: string;
+};
 type InventoryRecord = { id: string; bloodBankId?: unknown; bloodGroup?: unknown; rhFactor?: unknown; componentType?: unknown; unitsAvailable?: unknown; unitsReserved?: unknown; status?: unknown; collectionDate?: unknown; expiryDate?: unknown };
 
 async function adminFetch<T>(path: string, user: { getIdToken: () => Promise<string> }) {
@@ -69,10 +93,106 @@ export function AdminUsersPage() {
 export function AdminOrganizationsPage() {
   const { firebaseUser } = useAuth();
   const [organizations, setOrganizations] = useState<Organization[]>([]);
+  const [requests, setRequests] = useState<OnboardingRequest[]>([]);
   const [error, setError] = useState("");
-  useEffect(() => { if (!firebaseUser) return; adminFetch<{ organizations: Organization[] }>("/api/admin/organizations", firebaseUser).then((data) => setOrganizations(data.organizations)).catch((reason) => setError(reason instanceof Error ? reason.message : "Organizations unavailable.")); }, [firebaseUser]);
+  const [typeFilter, setTypeFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("pending");
+  const [reasons, setReasons] = useState<Record<string, string>>({});
+  const [savingId, setSavingId] = useState("");
+  useEffect(() => {
+    if (!firebaseUser) return;
+    Promise.all([
+      adminFetch<{ organizations: Organization[] }>("/api/admin/organizations", firebaseUser),
+      adminFetch<{ requests: OnboardingRequest[] }>("/api/admin/organizations/requests", firebaseUser),
+    ]).then(([organizationData, requestData]) => {
+      setOrganizations(organizationData.organizations);
+      setRequests(requestData.requests);
+    }).catch((reason) => setError(reason instanceof Error ? reason.message : "Organization data unavailable."));
+  }, [firebaseUser]);
+
+  async function decide(item: OnboardingRequest, action: "approve" | "reject") {
+    if (!firebaseUser) return;
+    const rejectionReason = reasons[item.id]?.trim() || "";
+    if (action === "reject" && rejectionReason.length < 5) {
+      setError("Enter a rejection reason of at least 5 characters.");
+      return;
+    }
+    setSavingId(item.id);
+    setError("");
+    try {
+      const token = await firebaseUser.getIdToken();
+      const response = await fetch("/api/admin/organizations/requests", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ requestId: item.id, action, ...(action === "reject" ? { rejectionReason } : {}) }),
+      });
+      const result = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(result.error || "Organization decision could not be saved.");
+      const updated = await adminFetch<{ requests: OnboardingRequest[] }>("/api/admin/organizations/requests", firebaseUser);
+      setRequests(updated.requests);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Organization decision could not be saved.");
+    } finally {
+      setSavingId("");
+    }
+  }
+
+  const filteredRequests = requests.filter((item) =>
+    (!typeFilter || item.type === typeFilter)
+    && (!statusFilter || item.status === statusFilter),
+  );
   if (error) return <main className="mx-auto max-w-6xl px-5 py-10 sm:px-8"><ErrorState description={error} /></main>;
-  return <main className="mx-auto max-w-6xl px-5 py-10 sm:px-8"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-medical">Administration</p><h1 className="mt-3 text-4xl font-semibold text-foreground">Organizations</h1>{organizations.length === 0 ? <div className="mt-8"><EmptyState title="No organizations found" description="Hospitals and blood banks will appear here after trusted setup." /></div> : <div className="mt-8 grid gap-4 md:grid-cols-2">{organizations.map((organization) => <article key={organization.id} className="rounded-[1rem] border border-border bg-surface p-5"><div className="flex items-start justify-between gap-3"><div><h2 className="font-semibold text-foreground">{organization.name}</h2><p className="mt-1 text-sm capitalize text-foreground-muted">{readable(organization.type)}</p></div><span className="rounded-full bg-surface-muted px-2.5 py-1 text-xs font-semibold capitalize">{organization.verificationStatus}</span></div><p className="mt-4 text-sm text-foreground-muted">{organization.city || "Location not set"}{organization.state ? `, ${organization.state}` : ""}</p><p className="mt-2 text-sm text-foreground-muted">{organization.memberCount} member records</p></article>)}</div>}</main>;
+  if (!firebaseUser) return <LoadingState />;
+  return (
+    <main className="mx-auto max-w-6xl px-5 py-10 sm:px-8">
+      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-medical">Administration</p>
+      <h1 className="mt-3 text-4xl font-semibold text-foreground">Organizations</h1>
+      <section className="mt-8">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div><h2 className="text-2xl font-semibold text-foreground">Verification requests</h2><p className="mt-1 text-sm text-foreground-muted">Review organization details before enabling operational access.</p></div>
+          <div className="flex gap-3">
+            <label className="grid gap-1 text-xs font-medium text-foreground-muted">Type<select value={typeFilter} onChange={(event) => setTypeFilter(event.target.value)} className="h-10 rounded-lg border border-border-strong bg-surface px-3 text-sm text-foreground"><option value="">All types</option><option value="hospital">Hospital</option><option value="bloodBank">Blood bank</option></select></label>
+            <label className="grid gap-1 text-xs font-medium text-foreground-muted">Status<select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="h-10 rounded-lg border border-border-strong bg-surface px-3 text-sm text-foreground"><option value="">All statuses</option><option value="pending">Pending</option><option value="approved">Approved</option><option value="rejected">Rejected</option></select></label>
+          </div>
+        </div>
+        {filteredRequests.length === 0 ? <div className="mt-5"><EmptyState title="No requests match these filters" description="New hospital and blood-bank verification requests will appear here." /></div> : (
+          <div className="mt-5 grid gap-4">
+            {filteredRequests.map((item) => (
+              <article key={item.id} className="rounded-[1rem] border border-border bg-surface p-5">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div><p className="text-xs font-semibold uppercase tracking-[0.12em] text-primary">{readable(item.type)} · {item.status}</p><h3 className="mt-1 text-lg font-semibold text-foreground">{item.name}</h3><p className="text-sm text-foreground-muted">{item.legalName || "Legal name not provided"} · {item.city}{item.state ? `, ${item.state}` : ""}</p></div>
+                  <p className="text-xs text-foreground-muted">Submitted {item.createdAt ? new Date(item.createdAt).toLocaleString() : "—"}</p>
+                </div>
+                <div className="mt-4 grid gap-2 text-sm text-foreground-muted sm:grid-cols-2">
+                  <p><span className="font-medium text-foreground">Requester:</span> {item.requesterName} ({item.requesterUserId})</p>
+                  <p><span className="font-medium text-foreground">Account contact:</span> {item.requesterEmail || item.requesterPhone || "Not provided"}</p>
+                  <p><span className="font-medium text-foreground">Organization contact:</span> {item.email || "—"} · {item.phone || "—"}</p>
+                  <p><span className="font-medium text-foreground">Address:</span> {[item.address, item.city, item.state, item.country].filter(Boolean).join(", ") || "—"}</p>
+                  {item.registrationNumber && <p><span className="font-medium text-foreground">Registration:</span> {item.registrationNumber}</p>}
+                </div>
+                {item.status === "pending" ? (
+                  <div className="mt-5 flex flex-col gap-3 border-t border-border pt-4 sm:flex-row sm:items-end">
+                    <label className="grid flex-1 gap-1 text-xs font-medium text-foreground-muted">Rejection reason (required to reject)<textarea value={reasons[item.id] || ""} onChange={(event) => setReasons((current) => ({ ...current, [item.id]: event.target.value }))} maxLength={1000} rows={2} className="rounded-lg border border-border-strong bg-surface px-3 py-2 text-sm text-foreground" /></label>
+                    <div className="flex gap-2"><button disabled={savingId === item.id} onClick={() => void decide(item, "approve")} className="h-10 rounded-lg bg-primary px-4 text-sm font-semibold text-white disabled:opacity-60">{savingId === item.id ? "Saving…" : "Approve"}</button><button disabled={savingId === item.id || (reasons[item.id]?.trim().length || 0) < 5} onClick={() => void decide(item, "reject")} className="h-10 rounded-lg border border-red-200 px-4 text-sm font-semibold text-danger disabled:opacity-50">Reject</button></div>
+                  </div>
+                ) : (
+                  <p className="mt-4 border-t border-border pt-4 text-xs text-foreground-muted">
+                    Decided {item.decidedAt ? new Date(item.decidedAt).toLocaleString() : "—"} by {item.decidedByName || item.decidedBy || "administrator"}
+                    {item.organizationId ? ` · Organization ${item.organizationId}` : ""}
+                    {item.rejectionReason ? ` · Reason: ${item.rejectionReason}` : ""}
+                  </p>
+                )}
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
+      <section className="mt-12">
+        <h2 className="text-2xl font-semibold text-foreground">Verified organizations</h2>
+        {organizations.length === 0 ? <div className="mt-5"><EmptyState title="No organizations found" description="Hospitals and blood banks will appear here after verification." /></div> : <div className="mt-5 grid gap-4 md:grid-cols-2">{organizations.map((organization) => <article key={organization.id} className="rounded-[1rem] border border-border bg-surface p-5"><div className="flex items-start justify-between gap-3"><div><h3 className="font-semibold text-foreground">{organization.name}</h3><p className="mt-1 text-sm capitalize text-foreground-muted">{readable(organization.type)}</p></div><span className="rounded-full bg-surface-muted px-2.5 py-1 text-xs font-semibold capitalize">{organization.verificationStatus}</span></div><p className="mt-4 text-sm text-foreground-muted">{organization.city || "Location not set"}{organization.state ? `, ${organization.state}` : ""}</p><p className="mt-2 text-sm text-foreground-muted">{organization.memberCount} member records</p></article>)}</div>}
+      </section>
+    </main>
+  );
 }
 
 export function AdminInventoryPage() {

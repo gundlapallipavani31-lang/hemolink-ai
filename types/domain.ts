@@ -29,6 +29,7 @@ export type Organization = {
   state?: string;
   country?: string;
   verificationStatus: VerificationStatus;
+  identityKey?: string;
   createdAt?: FirebaseTimestamp;
   updatedAt?: FirebaseTimestamp;
 };
@@ -41,6 +42,30 @@ export type OrganizationMember = {
   status: "invited" | "active" | "revoked";
   createdAt?: FirebaseTimestamp;
   updatedAt?: FirebaseTimestamp;
+};
+
+export type OrganizationRequestStatus = "pending" | "approved" | "rejected";
+
+export type OrganizationRequest = {
+  id: string;
+  type: OrganizationType;
+  requesterUserId: string;
+  name: string;
+  legalName?: string;
+  registrationNumber?: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+  city: string;
+  state?: string;
+  country?: string;
+  status: OrganizationRequestStatus;
+  organizationId?: string;
+  rejectionReason?: string;
+  createdAt?: FirebaseTimestamp;
+  updatedAt?: FirebaseTimestamp;
+  decidedAt?: FirebaseTimestamp;
+  decidedBy?: string;
 };
 
 export type DonorEligibilityStatus =
