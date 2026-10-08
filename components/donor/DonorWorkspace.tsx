@@ -27,7 +27,42 @@ export function DonorDashboard() {
   const { profile, loading, error } = useDonorProfile();
   if (loading) return <LoadingState title="Loading donor workspace" />;
   if (error) return <ErrorState title="Donor profile unavailable" description={error} />;
-  return <main className="mx-auto max-w-7xl px-5 py-10 sm:px-8 lg:px-10"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-medical">Donor workspace</p><h1 className="mt-3 text-4xl font-semibold tracking-[-0.05em] text-foreground">Good to see you, {userProfile?.name || firebaseUser?.email}.</h1><p className="mt-4 max-w-2xl text-sm leading-6 text-foreground-muted">Your donor information, eligibility context, and availability in one calm view.</p><div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{[["Blood group", profile?.bloodGroup || "Not set"], ["Eligibility", profile?.eligibilityStatus || "Unknown"], ["Last donation", profile?.lastDonationAt ? profile.lastDonationAt.toDate().toLocaleDateString() : "Not recorded"], ["Availability", profile?.availabilityStatus || "Unknown"]].map(([label, value]) => <div key={label} className="rounded-[1rem] border border-border bg-surface p-5 shadow-xs"><p className="text-xs uppercase tracking-[0.14em] text-foreground-subtle">{label}</p><p className="mt-3 text-xl font-semibold capitalize text-primary">{value}</p></div>)}</div><div className="mt-8 flex flex-wrap gap-3"><Link href="/donor/profile" className="rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-white">Complete profile</Link><Link href="/donor/availability" className="rounded-lg border border-border-strong px-4 py-3 text-sm font-semibold text-primary">Set availability</Link><Link href="/donor/eligibility" className="rounded-lg border border-border-strong px-4 py-3 text-sm font-semibold text-primary">View eligibility</Link></div><div className="mt-8 grid gap-6 lg:grid-cols-[1.2fr_0.8fr]"><section className="rounded-[1rem] border border-border bg-surface p-6"><h2 className="font-semibold text-foreground">Recent donations</h2>  <div className="mt-5"><DonationHistory compact /></div></section><section className="rounded-[1rem] border border-border bg-surface p-6"><h2 className="font-semibold text-foreground">Emergency opportunities</h2><div className="mt-5"><EmptyState title="No opportunities to show" description="Future matching opportunities will appear here. No live opportunities are being claimed yet." /></div></section></div></main>;
+  return (
+    <main className="mx-auto max-w-7xl px-5 py-10 sm:px-8 lg:px-10">
+      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-medical">Donor workspace</p>
+      <h1 className="mt-3 text-4xl font-semibold tracking-[-0.05em] text-foreground">
+        Good to see you, {userProfile?.name || firebaseUser?.email}.
+      </h1>
+      <p className="mt-4 max-w-2xl text-sm leading-6 text-foreground-muted">
+        Your donor information, eligibility context, and availability in one calm view.
+      </p>
+      <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {[["Blood group", profile?.bloodGroup || "Not set"], ["Eligibility", profile?.eligibilityStatus || "Unknown"], ["Last donation", profile?.lastDonationAt ? profile.lastDonationAt.toDate().toLocaleDateString() : "Not recorded"], ["Availability", profile?.availabilityStatus || "Unknown"]].map(([label, value]) => (
+          <div key={label} className="rounded-[1rem] border border-border bg-surface p-5 shadow-xs">
+            <p className="text-xs uppercase tracking-[0.14em] text-foreground-subtle">{label}</p>
+            <p className="mt-3 text-xl font-semibold capitalize text-primary">{value}</p>
+          </div>
+        ))}
+      </div>
+      <div className="mt-8 flex flex-wrap gap-3">
+        <Link href="/donor/profile" className="rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-white">Complete profile</Link>
+        <Link href="/donor/availability" className="rounded-lg border border-border-strong px-4 py-3 text-sm font-semibold text-primary">Set availability</Link>
+        <Link href="/donor/eligibility" className="rounded-lg border border-border-strong px-4 py-3 text-sm font-semibold text-primary">View eligibility</Link>
+        <Link href="/donor/opportunities" className="rounded-lg border border-primary px-4 py-3 text-sm font-semibold text-primary">View donation opportunities</Link>
+      </div>
+      <div className="mt-8 grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
+        <section className="rounded-[1rem] border border-border bg-surface p-6">
+          <h2 className="font-semibold text-foreground">Recent donations</h2>
+          <div className="mt-5"><DonationHistory compact /></div>
+        </section>
+        <section className="rounded-[1rem] border border-border bg-surface p-6">
+          <h2 className="font-semibold text-foreground">Donation opportunities</h2>
+          <p className="mt-3 text-sm leading-6 text-foreground-muted">Review invitations from verified blood banks and manage your response.</p>
+          <Link href="/donor/opportunities" className="mt-5 inline-flex rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-white">Open opportunities</Link>
+        </section>
+      </div>
+    </main>
+  );
 }
 
 export function DonorProfilePage() {
@@ -50,5 +85,70 @@ export function DonorProfilePage() {
 }
 
 export function DonorEligibilityPage() { const { profile, loading, error } = useDonorProfile(); if (loading) return <LoadingState />; if (error) return <ErrorState description={error} />; return <main className="mx-auto max-w-4xl px-5 py-10 sm:px-8"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-medical">Eligibility</p><h1 className="mt-3 text-4xl font-semibold text-foreground">Donation eligibility</h1><div className="mt-8 rounded-[1rem] border border-border bg-surface p-6"><p className="text-sm text-foreground-muted">Current status</p><p className="mt-2 text-2xl font-semibold capitalize text-primary">{profile?.eligibilityStatus || "unknown"}</p><p className="mt-5 text-sm leading-6 text-foreground-muted">Eligibility information will be provided by authorized healthcare or blood-bank staff. HemoLink AI does not infer medical eligibility here.</p></div></main>; }
-export function DonorAvailabilityPage() { const { firebaseUser } = useAuth(); const [status, setStatus] = useState<"available" | "unavailable">("available"); const [saved, setSaved] = useState(""); return <main className="mx-auto max-w-3xl px-5 py-10 sm:px-8"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-medical">Availability</p><h1 className="mt-3 text-4xl font-semibold text-foreground">Your availability</h1><p className="mt-4 text-sm text-foreground-muted">Set whether you are open to future opportunities. This does not create or promise a donation request.</p><div className="mt-8 flex flex-wrap gap-3">{(["available", "unavailable"] as const).map((value) => <button key={value} onClick={async () => { if (firebaseUser) await updateDonorAvailability(firebaseUser.uid, value); setStatus(value); setSaved("Availability saved."); }} className={`rounded-lg border px-5 py-3 text-sm font-semibold capitalize ${status === value ? "border-primary bg-soft-rose text-primary" : "border-border-strong bg-surface text-foreground-muted"}`}>{value}</button>)}</div>{saved && <p role="status" className="mt-4 text-sm text-success">{saved}</p>}</main>; }
+export function DonorAvailabilityPage() {
+  const { firebaseUser } = useAuth();
+  const [status, setStatus] = useState<"available" | "unavailable" | "unknown" | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [saved, setSaved] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    if (!firebaseUser) return () => { active = false; };
+    getDonorProfile(firebaseUser.uid)
+      .then((profile) => {
+        if (active) setStatus(profile?.availabilityStatus || null);
+      })
+      .catch((reason) => {
+        if (active) setError(reason instanceof Error ? reason.message : "Availability could not be loaded.");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => { active = false; };
+  }, [firebaseUser]);
+
+  async function changeAvailability(value: "available" | "unavailable") {
+    if (!firebaseUser) return;
+    setSaving(true);
+    setError("");
+    setSaved("");
+    try {
+      await updateDonorAvailability(firebaseUser.uid, value);
+      setStatus(value);
+      setSaved("Availability saved.");
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Availability could not be saved.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (loading && firebaseUser) return <LoadingState title="Loading availability" />;
+  if (!firebaseUser) return <ErrorState title="Sign in required" description="Sign in to manage your donor availability." />;
+  return (
+    <main className="mx-auto max-w-3xl px-5 py-10 sm:px-8">
+      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-medical">Availability</p>
+      <h1 className="mt-3 text-4xl font-semibold text-foreground">Your availability</h1>
+      <p className="mt-4 text-sm text-foreground-muted">Set whether you are open to future opportunities. This does not create or promise a donation request.</p>
+      {!status ? (
+        <div className="mt-8 rounded-xl border border-border bg-surface p-5">
+          <p className="text-sm text-foreground-muted">Complete your donor profile before setting availability.</p>
+          <Link href="/donor/profile" className="mt-4 inline-flex rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-white">Complete donor profile</Link>
+        </div>
+      ) : (
+        <div className="mt-8 flex flex-wrap gap-3">
+          {(["available", "unavailable"] as const).map((value) => (
+            <button key={value} disabled={saving} onClick={() => void changeAvailability(value)} className={`rounded-lg border px-5 py-3 text-sm font-semibold capitalize disabled:opacity-60 ${status === value ? "border-primary bg-soft-rose text-primary" : "border-border-strong bg-surface text-foreground-muted"}`}>
+              {saving ? "Saving…" : value}
+            </button>
+          ))}
+        </div>
+      )}
+      {error && <p role="alert" className="mt-4 text-sm text-danger">{error}</p>}
+      {saved && <p role="status" className="mt-4 text-sm text-success">{saved}</p>}
+    </main>
+  );
+}
 export function DonorPlaceholder({ title, description }: { title: string; description: string }) { return <main className="mx-auto max-w-4xl px-5 py-10 sm:px-8"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-medical">Donor workspace</p><h1 className="mt-3 text-4xl font-semibold text-foreground">{title}</h1><div className="mt-8"><EmptyState title="Coming next" description={description} /></div></main>; }
