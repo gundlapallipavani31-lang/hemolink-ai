@@ -101,6 +101,11 @@ service cloud.firestore {
       allow create, update, delete: if false;
     }
 
+    match /donorOpportunities/{opportunityId} {
+      allow read: if activeUser() && resource.data.donorId == request.auth.uid;
+      allow create, update, delete: if false;
+    }
+
     match /bloodInventory/{inventoryId} {
       allow read: if bloodBankMember(resource.data.bloodBankId) || trustedAdmin();
       allow create: if bloodBankMember(request.resource.data.bloodBankId)

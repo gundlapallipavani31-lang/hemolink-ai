@@ -33,6 +33,7 @@ const links = {
     ["Overview", "/blood-bank"],
     ["Profile", "/blood-bank/profile"],
     ["Inventory", "/blood-bank/inventory"],
+    ["Donor opportunities", "/blood-bank/opportunities"],
     ["Requests", "/blood-bank/requests"],
     ["Distribution", "/blood-bank/distribution"],
     ["Team", "/blood-bank/team"],
