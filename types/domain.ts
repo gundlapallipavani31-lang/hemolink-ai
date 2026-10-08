@@ -115,6 +115,7 @@ export type RequestStatus =
   | "draft"
   | "submitted"
   | "under_review"
+  | "needs_information"
   | "approved"
   | "preparing"
   | "dispatched"
@@ -157,6 +158,10 @@ export type BloodRequest = {
   fulfillmentAllocations?: FulfillmentAllocation[];
   assignedBloodBankIds?: string[];
   unitsDispatched?: number;
+  ownerUserId?: string;
+  assignedAt?: FirebaseTimestamp;
+  acknowledgedAt?: FirebaseTimestamp;
+  firstResponseAt?: FirebaseTimestamp;
   neededBy?: FirebaseTimestamp;
   notes?: string;
   createdAt?: FirebaseTimestamp;
@@ -171,6 +176,11 @@ export type BloodRequestEvent = {
     | "created"
     | "submitted"
     | "reviewed"
+    | "acknowledged"
+    | "assigned"
+    | "review_message"
+    | "information_requested"
+    | "hospital_response"
     | "approved"
     | "rejected"
     | "reserved"

@@ -64,7 +64,19 @@ export async function listRequestEvents(requestId: string) {
       where("requestId", "==", requestId),
     ),
   );
-  return snapshot.docs.map((item) => ({ id: item.id, ...item.data() }));
+  const events: Record<string, unknown>[] = snapshot.docs.map((item) => ({
+    id: item.id,
+    ...item.data(),
+  }));
+  return events.sort((left, right) => {
+    const millis = (value: unknown) => {
+      if (typeof value === "object" && value !== null && "toMillis" in value && typeof value.toMillis === "function") {
+        return value.toMillis();
+      }
+      return 0;
+    };
+    return millis(left.createdAt) - millis(right.createdAt);
+  });
 }
 
 export async function createBloodRequest(
