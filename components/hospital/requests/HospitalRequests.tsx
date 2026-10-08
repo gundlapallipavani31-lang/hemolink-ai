@@ -33,8 +33,9 @@ function formatDateTime(value: unknown) {
 }
 
 function RequestStatus({ status }: { status: string }) {
-  const tone = status === "approved" || status === "fulfilled" ? "bg-green-50 text-success" : status === "rejected" || status === "cancelled" ? "bg-red-50 text-danger" : "bg-amber-50 text-warning";
-  return <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${tone}`}>{readable(status === "submitted" ? "under_review" : status)}</span>;
+  const tone = status === "approved" || status === "fulfilled" ? "bg-green-50 text-success" : status === "rejected" || status === "cancelled" ? "bg-red-50 text-danger" : status === "needs_information" ? "bg-orange-50 text-orange-800" : "bg-amber-50 text-warning";
+  const label = status === "submitted" ? "Awaiting review" : status === "needs_information" ? "Information required" : readable(status);
+  return <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${tone}`}>{label}</span>;
 }
 
 function priorityLabel(priority: number) {
@@ -115,7 +116,7 @@ export function HospitalRequestList() {
       <div className="mt-8 flex flex-wrap gap-3 rounded-[1rem] border border-border bg-surface p-5">
         <select value={status} onChange={(event) => setStatus(event.target.value)} className="h-11 rounded-lg border border-border-strong bg-surface px-3 text-sm">
           <option value="">All statuses</option>
-          {['submitted', 'under_review', 'approved', 'preparing', 'dispatched', 'partially_fulfilled', 'rejected', 'cancelled', 'fulfilled'].map((item) => <option key={item} value={item}>{readable(item)}</option>)}
+          {['submitted', 'under_review', 'needs_information', 'approved', 'preparing', 'dispatched', 'partially_fulfilled', 'rejected', 'cancelled', 'fulfilled'].map((item) => <option key={item} value={item}>{readable(item)}</option>)}
         </select>
         <select value={urgency} onChange={(event) => setUrgency(event.target.value)} className="h-11 rounded-lg border border-border-strong bg-surface px-3 text-sm">
           <option value="">All urgency</option>
@@ -292,6 +293,10 @@ export function HospitalRequestDetail() {
   const { firebaseUser } = useAuth();
   const [request, setRequest] = useState<BloodRequest | null>(null);
   const [events, setEvents] = useState<Record<string, unknown>[]>([]);
+  const [responseText, setResponseText] = useState("");
+  const [responseError, setResponseError] = useState("");
+  const [responseSent, setResponseSent] = useState(false);
+  const [responding, setResponding] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [receiptError, setReceiptError] = useState("");
@@ -348,11 +353,48 @@ export function HospitalRequestDetail() {
     }
   }
 
+  async function submitInformationResponse(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!firebaseUser || !request) {
+      setResponseError("Sign in with your hospital account to respond.");
+      return;
+    }
+    if (responseText.trim().length < 2) {
+      setResponseError("Enter a response before submitting.");
+      return;
+    }
+    setResponding(true);
+    setResponseError("");
+    setResponseSent(false);
+    try {
+      const token = await firebaseUser.getIdToken();
+      const response = await fetch("/api/hospital/requests/respond", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ requestId: request.id, message: responseText }),
+      });
+      const result = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(result.error || "Your response could not be submitted.");
+      const [updatedRequest, updatedEvents] = await Promise.all([
+        getBloodRequest(request.id),
+        listRequestEvents(request.id),
+      ]);
+      setRequest(updatedRequest);
+      setEvents(updatedEvents);
+      setResponseText("");
+      setResponseSent(true);
+    } catch (submitError) {
+      setResponseError(submitError instanceof Error ? submitError.message : "Your response could not be submitted.");
+    } finally {
+      setResponding(false);
+    }
+  }
+
   if (loading) return <LoadingState title="Loading request" />;
-  if (error) return <ErrorState description={error} />;
+  if (error && !request) return <ErrorState description={error} />;
   if (!request) return <EmptyState title="Request not found" description="This request is not available." />;
 
-  const statusText = request.status === "submitted" ? "Under Review" : readable(request.status);
+  const statusText = request.status === "submitted" ? "Awaiting review" : request.status === "needs_information" ? "Information required" : readable(request.status);
   const reasonText = request.urgency === "emergency" ? "Limited matching inventory and short time-to-needed-by." : request.urgency === "urgent" ? "Inventory is constrained and the time window is narrow." : "Operationally routine with standard review.";
   const unitsDispatched = request.unitsDispatched || 0;
   const unitsAwaitingReceipt = Math.max(
@@ -369,6 +411,27 @@ export function HospitalRequestDetail() {
         : ["approved"].includes(request.status)
           ? 1
           : 0;
+  const informationEvents = events.filter((event) => event.eventType === "information_requested");
+  const latestInformationEvent = informationEvents[informationEvents.length - 1];
+  const informationMetadata = latestInformationEvent && typeof latestInformationEvent.metadata === "object" && latestInformationEvent.metadata !== null
+    ? latestInformationEvent.metadata as Record<string, unknown>
+    : {};
+  const publicEventLabels: Record<string, string> = {
+    created: "Request submitted",
+    submitted: "Request submitted",
+    acknowledged: "Acknowledged for review",
+    review_message: "Review update",
+    information_requested: "Information requested",
+    hospital_response: "Hospital response received",
+    reviewed: "Request reviewed",
+    approved: "Request approved",
+    rejected: "Request rejected",
+    reserved: "Stock reserved",
+    dispatched: "Request dispatched",
+    received: "Receipt confirmed",
+    fulfilled: "Request fulfilled",
+    cancelled: "Request cancelled",
+  };
 
   return (
     <main className="mx-auto max-w-4xl px-5 py-10 sm:px-8">
@@ -393,6 +456,7 @@ export function HospitalRequestDetail() {
         <div className="mt-8 rounded-lg border border-border bg-surface-muted p-5">
           <p className="text-xs uppercase tracking-[0.12em] text-foreground-subtle">Status</p>
           <p className="mt-2 text-lg font-semibold text-foreground">{statusText}</p>
+          {request.acknowledgedAt && <p className="mt-2 text-sm text-foreground-muted">Acknowledged for review on {formatDateTime(request.acknowledgedAt)}.</p>}
           <p className="mt-5 text-xs uppercase tracking-[0.12em] text-foreground-subtle">Operational Priority</p>
           <p className="mt-2 text-lg font-semibold text-foreground">{priorityLabel(request.priority)}</p>
           {request.urgency === "emergency" && <p className="mt-4 text-sm leading-6 text-foreground-muted">{reasonText}</p>}
@@ -426,11 +490,45 @@ export function HospitalRequestDetail() {
           {receiptMessage && <p role="status" className="mt-3 text-sm text-success">{receiptMessage}</p>}
         </section>
 
+        {request.status === "needs_information" && (
+          <section className="mt-8 rounded-xl border border-orange-200 bg-orange-50/70 p-5">
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-orange-900">Hospital response required</p>
+            <h2 className="mt-2 text-lg font-semibold text-foreground">Additional information requested</h2>
+            {typeof informationMetadata.message === "string" && <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-foreground-muted">{informationMetadata.message}</p>}
+            <form onSubmit={submitInformationResponse} className="mt-5 grid gap-3">
+              <label htmlFor="hospital-information-response" className="text-sm font-medium text-foreground">Your response</label>
+              <textarea id="hospital-information-response" value={responseText} onChange={(inputEvent) => setResponseText(inputEvent.target.value)} maxLength={1000} rows={4} className="rounded-lg border border-orange-200 bg-white px-3 py-2.5 text-sm" placeholder="Provide the requested operational details." required />
+              {responseError && <p role="alert" className="text-sm text-danger">{responseError}</p>}
+              {responseSent && <p role="status" className="text-sm text-success">Response received. The request is back under review.</p>}
+              <button type="submit" disabled={responding || responseText.trim().length < 2} className="w-fit rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60">{responding ? "Sending response…" : "Submit response"}</button>
+            </form>
+          </section>
+        )}
+
         {events.length > 0 && (
           <div className="mt-8">
             <h2 className="text-lg font-semibold text-foreground">Request activity</h2>
             <ul className="mt-4 space-y-3">
-              {events.map((event) => <li key={String(event.id)} className="rounded-lg border border-border bg-surface-muted p-4 text-sm text-foreground-muted"><span className="font-semibold text-foreground">{readable(String(event.eventType || "Updated"))}</span> · {formatDateTime(event.createdAt)}{typeof event.actorUserId === "string" ? ` · Actor ${event.actorUserId}` : ""}{typeof (event.metadata as { units?: unknown } | undefined)?.units === "number" ? ` · ${String((event.metadata as { units: number }).units)} units` : ""}</li>)}
+              {events.map((event) => {
+                const eventType = typeof event.eventType === "string" ? event.eventType : "updated";
+                const metadata = typeof event.metadata === "object" && event.metadata !== null ? event.metadata as Record<string, unknown> : {};
+                const publicMessage = ["review_message", "information_requested", "hospital_response"].includes(eventType)
+                  && metadata.visibility === "hospital"
+                  && typeof metadata.message === "string"
+                  ? metadata.message
+                  : "";
+                return (
+                  <li key={String(event.id)} className="rounded-lg border border-border bg-surface-muted p-4 text-sm text-foreground-muted">
+                    <div className="flex flex-wrap justify-between gap-2">
+                      <span className="font-semibold text-foreground">{publicEventLabels[eventType] || readable(eventType)}</span>
+                      <time>{formatDateTime(event.createdAt)}</time>
+                    </div>
+                    {publicMessage && <p className="mt-2 whitespace-pre-wrap leading-6">{publicMessage}</p>}
+                    {typeof event.actorUserId === "string" && <p className="mt-2 text-xs">Actor {event.actorUserId}</p>}
+                    {typeof metadata.units === "number" && <p className="mt-2 text-xs">{metadata.units} units</p>}
+                  </li>
+                );
+              })}
             </ul>
           </div>
         )}

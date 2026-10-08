@@ -145,7 +145,7 @@ export async function rejectRequestWithTrustedAdmin(
     const snapshot = await transaction.get(requestRef);
     if (!snapshot.exists) throw new Error("Blood request not found.");
     const request = snapshot.data() as BloodRequest;
-    if (!["submitted", "under_review"].includes(request.status)) {
+    if (!["submitted", "under_review", "needs_information"].includes(request.status)) {
       throw new Error("This request is not awaiting review.");
     }
     transaction.update(requestRef, {
