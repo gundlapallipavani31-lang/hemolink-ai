@@ -130,6 +130,9 @@ export type BloodRequest = {
   hospitalId: string;
   createdBy: string;
   patientId?: string;
+  patientName?: string;
+  caseId?: string;
+  hospitalName?: string;
   bloodGroup: BloodGroup;
   rhFactor?: RhFactor;
   componentType: BloodComponent;

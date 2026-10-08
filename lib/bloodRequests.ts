@@ -19,7 +19,10 @@ import type {
 } from "@/types/domain";
 
 export type BloodRequestInput = {
-  patientId: string;
+  patientId?: string;
+  patientName?: string;
+  caseId?: string;
+  hospitalName?: string;
   bloodGroup: BloodGroup;
   rhFactor?: RhFactor;
   componentType: BloodComponent;
@@ -69,14 +72,21 @@ export async function createBloodRequest(
   createdBy: string,
   input: BloodRequestInput,
 ) {
-  const patient = await getDoc(doc(db, "patients", input.patientId));
-  if (!patient.exists() || patient.data().hospitalId !== hospitalId) {
-    throw new Error("Patient is not part of this hospital.");
+  if (input.patientId) {
+    const patient = await getDoc(doc(db, "patients", input.patientId));
+    if (!patient.exists() || patient.data().hospitalId !== hospitalId) {
+      throw new Error("Patient is not part of this hospital.");
+    }
   }
+
   const request = await addDoc(collection(db, "bloodRequests"), {
     hospitalId,
     createdBy,
     ...input,
+    patientId: input.patientId || null,
+    patientName: input.patientName?.trim() || null,
+    caseId: input.caseId?.trim() || null,
+    hospitalName: input.hospitalName?.trim() || null,
     neededBy: Timestamp.fromDate(input.neededBy),
     unitsFulfilled: 0,
     priority: priorityForUrgency(input.urgency),
@@ -84,13 +94,19 @@ export async function createBloodRequest(
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
+
   await addDoc(collection(db, "bloodRequestEvents"), {
     requestId: request.id,
     actorUserId: createdBy,
     eventType: "created",
-    metadata: {},
+    metadata: {
+      urgency: input.urgency,
+      patientName: input.patientName?.trim() || null,
+      caseId: input.caseId?.trim() || null,
+    },
     createdAt: serverTimestamp(),
   });
+
   return request;
 }
 
