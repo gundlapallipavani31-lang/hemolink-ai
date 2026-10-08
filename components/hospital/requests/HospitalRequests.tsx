@@ -192,7 +192,7 @@ export function HospitalRequestForm() {
     };
     setSaving(true); setError("");
     try {
-      const request = await createBloodRequest(userProfile.organizationId, firebaseUser.uid, input);
+      const request = await createBloodRequest(input);
       router.push(`/hospital/requests/${request.id}`);
     } catch (submissionError) {
       setError(submissionError instanceof Error ? submissionError.message : "The request could not be created.");
@@ -247,7 +247,6 @@ export function HospitalEmergencyRequestForm() {
     const input: BloodRequestInput = {
       patientName,
       caseId,
-      hospitalName: userProfile.name || "Hospital",
       bloodGroup: String(data.get("bloodGroup")) as BloodGroup,
       componentType: String(data.get("componentType")) as BloodComponent,
       unitsRequested: units,
@@ -257,7 +256,7 @@ export function HospitalEmergencyRequestForm() {
     };
     setSaving(true); setError("");
     try {
-      const request = await createBloodRequest(userProfile.organizationId, firebaseUser.uid, input);
+      const request = await createBloodRequest(input);
       router.push(`/hospital/requests/${request.id}`);
     } catch (submissionError) {
       setError(submissionError instanceof Error ? submissionError.message : "The emergency request could not be created.");
