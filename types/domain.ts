@@ -134,6 +134,7 @@ export type BloodInventory = {
   status: InventoryStatus;
   createdAt?: FirebaseTimestamp;
   updatedAt?: FirebaseTimestamp;
+  ownerVerified?: boolean;
 };
 
 export type RequestStatus =
@@ -231,6 +232,7 @@ export type Donation = {
   donationDate: FirebaseTimestamp;
   status: DonationStatus;
   opportunityId?: string;
+  organizationId?: string;
   verifiedBy?: string;
   recordedBy?: string;
   createdAt?: FirebaseTimestamp;

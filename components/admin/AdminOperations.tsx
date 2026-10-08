@@ -37,7 +37,7 @@ type OnboardingRequest = {
   decidedBy?: string;
   decidedByName?: string;
 };
-type InventoryRecord = { id: string; bloodBankId?: unknown; bloodGroup?: unknown; rhFactor?: unknown; componentType?: unknown; unitsAvailable?: unknown; unitsReserved?: unknown; status?: unknown; collectionDate?: unknown; expiryDate?: unknown };
+type InventoryRecord = { id: string; bloodBankId?: unknown; bloodGroup?: unknown; rhFactor?: unknown; componentType?: unknown; unitsAvailable?: unknown; unitsReserved?: unknown; status?: unknown; collectionDate?: unknown; expiryDate?: unknown; ownerVerified?: boolean };
 
 async function adminFetch<T>(path: string, user: { getIdToken: () => Promise<string> }) {
   const response = await fetch(path, { headers: { Authorization: `Bearer ${await user.getIdToken()}` } });

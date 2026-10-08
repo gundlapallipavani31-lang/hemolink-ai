@@ -6,9 +6,6 @@ import { useEffect, useState } from "react";
 import { EmptyState, ErrorState, LoadingState } from "@/components/ui/AsyncState";
 import { useAuth } from "@/hooks/useAuth";
 import { getBloodRequest, listAdminRequests, listRequestEvents } from "@/lib/bloodRequests";
-import { db } from "@/lib/firebase";
-import { collection, getDocs, query, where } from "firebase/firestore";
-import { operationalAvailableUnits } from "@/lib/inventoryAvailability";
 import type { BloodRequest } from "@/types/domain";
 
 const readable = (value: string) => value.replace(/([A-Z])/g, " $1").replace(/^./, (letter) => letter.toUpperCase());
@@ -158,14 +155,18 @@ export function AdminRequestDetail() {
         setRequest(nextRequest);
         setEvents(nextEvents);
         if (nextRequest) {
-          const snapshot = await getDocs(query(collection(db, "bloodInventory"), where("bloodGroup", "==", nextRequest.bloodGroup)));
-          setAvailable(snapshot.docs.reduce((sum, item) => {
-            const stock = item.data();
-            return stock.componentType === nextRequest.componentType
-              && (!nextRequest.rhFactor || stock.rhFactor === nextRequest.rhFactor)
-              ? sum + operationalAvailableUnits(stock)
-              : sum;
-          }, 0));
+          const params = new URLSearchParams({
+            bloodGroup: nextRequest.bloodGroup,
+            component: nextRequest.componentType,
+          });
+          if (nextRequest.rhFactor) params.set("rhFactor", nextRequest.rhFactor);
+          const response = await fetch(`/api/availability?${params.toString()}`);
+          const result = await response.json() as {
+            results?: Array<{ availableUnits: number }>;
+            error?: string;
+          };
+          if (!response.ok) throw new Error(result.error || "Matching inventory could not be verified.");
+          setAvailable((result.results || []).reduce((sum, item) => sum + item.availableUnits, 0));
         }
       })
       .catch(() => setError("This request could not be loaded."))

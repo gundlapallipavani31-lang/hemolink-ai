@@ -3,6 +3,7 @@ import type { BloodRequest, FulfillmentAllocation } from "@/types/domain";
 import { getAdminServices } from "@/lib/firebaseAdmin";
 import { createNotification } from "@/lib/notifications";
 import { inventoryDate, operationalAvailableUnits } from "@/lib/inventoryAvailability";
+import { readVerifiedActiveBloodBankIds } from "@/lib/serverInventoryOwnership";
 import type { BloodComponent, BloodGroup, RequestUrgency } from "@/types/domain";
 
 const bloodGroups: BloodGroup[] = ["A+", "A-", "B+", "B-", "O+", "O-", "AB+", "AB-"];
@@ -64,12 +65,19 @@ export async function approveRequestWithTrustedAdmin(
       db.collection("bloodInventory")
         .where("bloodGroup", "==", request.bloodGroup),
     );
+    const verifiedBloodBanks = await readVerifiedActiveBloodBankIds(
+      transaction,
+      db,
+      inventorySnapshot.docs.map((item) => item.data().bloodBankId)
+        .filter((id): id is string => typeof id === "string"),
+    );
     const now = new Date();
     const eligible = inventorySnapshot.docs
       .filter((item) => {
       const data = item.data();
       return (
-        operationalAvailableUnits(data, now) > 0 &&
+        verifiedBloodBanks.has(String(data.bloodBankId))
+        && operationalAvailableUnits({ ...data, ownerVerified: true }, now) > 0 &&
         typeof data.bloodBankId === "string" &&
         data.bloodBankId.length > 0 &&
         data.componentType === request.componentType &&
@@ -82,7 +90,7 @@ export async function approveRequestWithTrustedAdmin(
         return leftExpiry - rightExpiry;
       });
     const available = eligible.reduce(
-      (total, item) => total + operationalAvailableUnits(item.data(), now),
+      (total, item) => total + operationalAvailableUnits({ ...item.data(), ownerVerified: true }, now),
       0,
     );
     if (available < request.unitsRequested) {
@@ -94,7 +102,7 @@ export async function approveRequestWithTrustedAdmin(
     for (const item of eligible) {
       if (remaining === 0) break;
       const data = item.data();
-      const allocated = Math.min(remaining, operationalAvailableUnits(data, now));
+      const allocated = Math.min(remaining, operationalAvailableUnits({ ...data, ownerVerified: true }, now));
       allocations.push({
         bloodBankId: data.bloodBankId,
         inventoryId: item.id,

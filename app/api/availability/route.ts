@@ -4,6 +4,7 @@ import {
   operationalAvailableUnits,
 } from "@/lib/inventoryAvailability";
 import { isOneOf } from "@/lib/validation";
+import { loadVerifiedActiveBloodBanks } from "@/lib/serverInventoryOwnership";
 import type { BloodComponent, BloodGroup } from "@/types/domain";
 
 const bloodGroups: BloodGroup[] = ["A+", "A-", "B+", "B-", "O+", "O-", "AB+", "AB-"];
@@ -19,6 +20,7 @@ export async function GET(request: Request) {
   const params = new URL(request.url).searchParams;
   const bloodGroup = params.get("bloodGroup");
   const component = params.get("component");
+  const rhFactor = params.get("rhFactor");
   const location = params.get("location")?.trim().toLowerCase() || "";
 
   if (!isOneOf(bloodGroup, bloodGroups) || !isOneOf(component, components)) {
@@ -27,19 +29,19 @@ export async function GET(request: Request) {
       { status: 400 },
     );
   }
+  if (rhFactor !== null && rhFactor !== "positive" && rhFactor !== "negative") {
+    return Response.json({ error: "A valid Rh factor is required." }, { status: 400 });
+  }
 
   try {
     const { db } = getAdminServices();
-    const [inventorySnapshot, organizationSnapshot] = await Promise.all([
+    const [inventorySnapshot, organizations] = await Promise.all([
       db.collection("bloodInventory")
         .where("bloodGroup", "==", bloodGroup)
         .where("componentType", "==", component)
         .get(),
-      db.collection("organizations").where("type", "==", "bloodBank").get(),
+      loadVerifiedActiveBloodBanks(db),
     ]);
-    const organizations = new Map(
-      organizationSnapshot.docs.map((item) => [item.id, item.data()]),
-    );
     const results = inventorySnapshot.docs
       .map((item) => {
         const stock = item.data();
@@ -47,12 +49,13 @@ export async function GET(request: Request) {
         const city = typeof organization?.city === "string" ? organization.city : "";
         const name = typeof organization?.name === "string" ? organization.name : "Blood bank";
         const expiryIndicator = inventoryExpiryState(stock.expiryDate);
+        if (rhFactor && stock.rhFactor !== rhFactor) return null;
         return {
           organizationName: name,
           city,
           bloodGroup,
           component,
-          availableUnits: operationalAvailableUnits(stock),
+          availableUnits: operationalAvailableUnits({ ...stock, ownerVerified: true }),
           expiryIndicator: expiryIndicator === "unknown"
             ? "not_recorded"
             : expiryIndicator === "expired"
@@ -62,6 +65,7 @@ export async function GET(request: Request) {
                 : "recorded",
         };
       })
+      .filter((item): item is NonNullable<typeof item> => item !== null)
       .filter((item) => item.availableUnits > 0)
       .filter((item) => !location || item.city.toLowerCase().includes(location));
 

@@ -3,6 +3,7 @@ import type { BloodRequest, FulfillmentAllocation } from "@/types/domain";
 import { getAdminServices } from "@/lib/firebaseAdmin";
 import { isOperationallyEligibleInventory } from "@/lib/inventoryAvailability";
 import { requireVerifiedOrganizationActor } from "@/lib/serverOrganizationOnboarding";
+import { readVerifiedActiveBloodBankIds } from "@/lib/serverInventoryOwnership";
 
 type OrganizationActor = {
   uid: string;
@@ -249,6 +250,14 @@ export async function dispatchReservedUnits(
     const inventorySnapshots = await Promise.all(
       dispatches.map((dispatch) => transaction.get(dispatch.ref)),
     );
+    const verifiedBloodBanks = await readVerifiedActiveBloodBankIds(
+      transaction,
+      actor.db,
+      [actor.organizationId],
+    );
+    if (!verifiedBloodBanks.has(actor.organizationId)) {
+      throw new Error("Verified active blood-bank ownership is required for dispatch.");
+    }
     const inventoryToUpdate = dispatches.map((dispatch, index) => {
       const inventorySnapshot = inventorySnapshots[index];
       if (!inventorySnapshot.exists) throw new Error("Reserved inventory record not found.");
@@ -257,7 +266,7 @@ export async function dispatchReservedUnits(
       if (inventory.bloodBankId !== actor.organizationId || reservedUnits < dispatch.units) {
         throw new Error("The reserved inventory no longer matches this dispatch.");
       }
-      if (!isOperationallyEligibleInventory(inventory)) {
+      if (!isOperationallyEligibleInventory({ ...inventory, ownerVerified: true })) {
         throw new Error("This reserved inventory is no longer eligible for dispatch.");
       }
       return { ...dispatch, reservedUnits };

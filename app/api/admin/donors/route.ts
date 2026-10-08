@@ -1,14 +1,16 @@
 import { adminErrorResponse, bearerToken, requireTrustedAdmin } from "@/lib/adminAuth";
+import { loadVerifiedActiveBloodBanks } from "@/lib/serverInventoryOwnership";
 
 export async function GET(request: Request) {
   try {
     const token = bearerToken(request);
     if (!token) return Response.json({ error: "Authentication required." }, { status: 401 });
     const { db } = await requireTrustedAdmin(token);
-    const [donorSnapshot, usersSnapshot, donationSnapshot] = await Promise.all([
+    const [donorSnapshot, usersSnapshot, donationSnapshot, bloodBanks] = await Promise.all([
       db.collection("donorProfiles").get(),
       db.collection("users").get(),
       db.collection("donations").get(),
+      loadVerifiedActiveBloodBanks(db),
     ]);
     const users = new Map(usersSnapshot.docs.map((item) => [item.id, item.data()]));
     const donationCounts = new Map<string, number>();
@@ -32,7 +34,13 @@ export async function GET(request: Request) {
         donationCount: donationCounts.get(item.id) || 0,
       };
     });
-    return Response.json({ donors });
+    return Response.json({
+      donors,
+      bloodBanks: [...bloodBanks.entries()].map(([id, organization]) => ({
+        id,
+        name: typeof organization.name === "string" ? organization.name : id,
+      })),
+    });
   } catch (error) {
     return adminErrorResponse(error);
   }

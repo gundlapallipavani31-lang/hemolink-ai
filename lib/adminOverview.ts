@@ -3,21 +3,26 @@ import {
   isInventoryExpiringWithin,
   operationalAvailableUnits,
 } from "@/lib/inventoryAvailability";
+import { loadVerifiedActiveBloodBankIds } from "@/lib/serverInventoryOwnership";
 
 export async function getAdminOverview() {
   const { db } = getAdminServices();
-  const [usersSnapshot, organizationsSnapshot, inventorySnapshot, requestsSnapshot, auditSnapshot] =
+  const [usersSnapshot, organizationsSnapshot, inventorySnapshot, requestsSnapshot, auditSnapshot, verifiedBloodBanks] =
     await Promise.all([
       db.collection("users").get(),
       db.collection("organizations").get(),
       db.collection("bloodInventory").get(),
       db.collection("bloodRequests").get(),
       db.collection("auditLogs").orderBy("createdAt", "desc").limit(10).get(),
+      loadVerifiedActiveBloodBankIds(db),
     ]);
 
   const users = usersSnapshot.docs.map((item) => item.data());
   const organizations = organizationsSnapshot.docs.map((item) => item.data());
-  const inventory = inventorySnapshot.docs.map((item) => item.data());
+  const inventory = inventorySnapshot.docs.map((item) => ({
+    ...item.data(),
+    ownerVerified: verifiedBloodBanks.has(String(item.data().bloodBankId)),
+  }));
   const requests = requestsSnapshot.docs.map((item) => item.data());
   const now = new Date();
 
