@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
@@ -113,7 +113,7 @@ export function HospitalRequestList() {
         </div>
       </div>
 
-      <div className="mt-8 flex flex-wrap gap-3 rounded-[1rem] border border-border bg-surface p-5">
+      <div className="mt-8 flex flex-wrap gap-3 rounded-2xl border border-border bg-surface p-5">
         <select value={status} onChange={(event) => setStatus(event.target.value)} className="h-11 rounded-lg border border-border-strong bg-surface px-3 text-sm">
           <option value="">All statuses</option>
           {['submitted', 'under_review', 'needs_information', 'approved', 'preparing', 'dispatched', 'partially_fulfilled', 'rejected', 'cancelled', 'fulfilled'].map((item) => <option key={item} value={item}>{readable(item)}</option>)}
@@ -127,8 +127,8 @@ export function HospitalRequestList() {
       {filtered.length === 0 ? (
         <div className="mt-5"><EmptyState title="No blood requests yet" description="Requests created for your hospital organization will appear here." /></div>
       ) : (
-        <div className="mt-5 overflow-x-auto rounded-[1rem] border border-border bg-surface">
-          <table className="w-full min-w-[900px] text-left text-sm">
+        <div className="mt-5 overflow-x-auto rounded-2xl border border-border bg-surface">
+          <table className="w-full min-w-225 text-left text-sm">
             <thead className="border-b border-border bg-surface-muted text-xs uppercase tracking-[0.12em] text-foreground-subtle">
               <tr>
                 <th className="px-5 py-4">Request</th>
@@ -207,7 +207,7 @@ export function HospitalRequestForm() {
       <h1 className="mt-3 text-4xl font-semibold text-foreground">Create blood request</h1>
       <p className="mt-4 text-sm leading-6 text-foreground-muted">Requests are submitted for authorized review. Stock is never changed by hospital users.</p>
       <div className="mt-6"><Link href="/hospital/requests/emergency" className="inline-flex rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-semibold text-danger">Need an emergency request instead?</Link></div>
-      <form onSubmit={submit} className="mt-8 grid gap-5 rounded-[1rem] border border-border bg-surface p-6 sm:grid-cols-2">
+      <form onSubmit={submit} className="mt-8 grid gap-5 rounded-2xl border border-border bg-surface p-6 sm:grid-cols-2">
         <label className="grid gap-2 text-sm font-medium">Patient<select required name="patientId" className="h-12 rounded-lg border border-border-strong bg-surface px-3"><option value="">Select patient</option>{patients.map((patient) => <option key={patient.id} value={patient.id}>{patient.displayName || patient.externalReference || patient.id}</option>)}</select></label>
         <label className="grid gap-2 text-sm font-medium">Blood group<select required name="bloodGroup" className="h-12 rounded-lg border border-border-strong bg-surface px-3"><option value="">Select blood group</option>{groups.map((item) => <option key={item}>{item}</option>)}</select></label>
         <label className="grid gap-2 text-sm font-medium">RH factor<select name="rhFactor" className="h-12 rounded-lg border border-border-strong bg-surface px-3"><option value="">Not specified</option><option value="positive">Positive</option><option value="negative">Negative</option></select></label>
@@ -271,7 +271,7 @@ export function HospitalEmergencyRequestForm() {
       <p className="text-xs font-semibold uppercase tracking-[0.18em] text-medical">Emergency response</p>
       <h1 className="mt-3 text-4xl font-semibold text-foreground">Emergency Blood Request</h1>
       <p className="mt-4 text-sm leading-6 text-foreground-muted">Time-sensitive requests are routed into the same review workflow and escalated by operational priority.</p>
-      <form onSubmit={submit} className="mt-8 grid gap-5 rounded-[1rem] border border-red-200 bg-red-50/40 p-6 sm:grid-cols-2">
+      <form onSubmit={submit} className="mt-8 grid gap-5 rounded-2xl border border-red-200 bg-red-50/40 p-6 sm:grid-cols-2">
         <label className="grid gap-2 text-sm font-medium">Patient name<input required name="patientName" placeholder="Patient name" className="h-12 rounded-lg border border-red-200 bg-white px-3" /></label>
         <label className="grid gap-2 text-sm font-medium">Patient reference / case ID<input required name="caseId" placeholder="Case ID" className="h-12 rounded-lg border border-red-200 bg-white px-3" /></label>
         <label className="grid gap-2 text-sm font-medium">Hospital<input readOnly value={userProfile?.name || "Hospital organization"} className="h-12 rounded-lg border border-red-200 bg-white px-3" /></label>
@@ -435,7 +435,7 @@ export function HospitalRequestDetail() {
 
   return (
     <main className="mx-auto max-w-4xl px-5 py-10 sm:px-8">
-      <div className="rounded-[1rem] border border-border bg-surface p-6 shadow-xs">
+      <div className="rounded-2xl border border-border bg-surface p-6 shadow-xs">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-medical">{request.urgency === "emergency" ? "Emergency Blood Request" : "Blood request"}</p>
@@ -467,15 +467,15 @@ export function HospitalRequestDetail() {
           <ol className="mt-4 grid gap-3 sm:grid-cols-5">
             {progressSteps.map((step, index) => (
               <li key={step} className={`rounded-lg border p-3 text-sm ${index <= progressIndex ? "border-primary/30 bg-soft-rose/40 text-primary" : "border-border bg-surface-muted text-foreground-subtle"}`}>
-                <span className="block text-xs uppercase tracking-[0.1em]">{index < progressIndex ? "Complete" : index === progressIndex ? "Current" : "Next"}</span>
+                <span className="block text-xs uppercase tracking-widest">{index < progressIndex ? "Complete" : index === progressIndex ? "Current" : "Next"}</span>
                 <span className="mt-1 block font-semibold">{readable(step)}</span>
               </li>
             ))}
           </ol>
           {request.status === "partially_fulfilled" && <p className="mt-4 text-sm font-medium text-warning">Partial receipt confirmed: {request.unitsFulfilled} of {request.unitsRequested} requested units.</p>}
           <div className="mt-5 grid gap-3 sm:grid-cols-2">
-            <div className="rounded-lg bg-surface-muted p-4"><p className="text-xs uppercase tracking-[0.1em] text-foreground-subtle">Dispatched</p><p className="mt-1 text-lg font-semibold text-foreground">{unitsDispatched} / {request.unitsRequested} units</p></div>
-            <div className="rounded-lg bg-surface-muted p-4"><p className="text-xs uppercase tracking-[0.1em] text-foreground-subtle">Received and confirmed</p><p className="mt-1 text-lg font-semibold text-foreground">{request.unitsFulfilled} / {request.unitsRequested} units</p></div>
+            <div className="rounded-lg bg-surface-muted p-4"><p className="text-xs uppercase tracking-widest text-foreground-subtle">Dispatched</p><p className="mt-1 text-lg font-semibold text-foreground">{unitsDispatched} / {request.unitsRequested} units</p></div>
+            <div className="rounded-lg bg-surface-muted p-4"><p className="text-xs uppercase tracking-widest text-foreground-subtle">Received and confirmed</p><p className="mt-1 text-lg font-semibold text-foreground">{request.unitsFulfilled} / {request.unitsRequested} units</p></div>
           </div>
           {unitsAwaitingReceipt > 0 && ["dispatched", "partially_fulfilled"].includes(request.status) && (
             <form onSubmit={confirmReceipt} className="mt-5 flex flex-wrap items-end gap-3 border-t border-border pt-5">
