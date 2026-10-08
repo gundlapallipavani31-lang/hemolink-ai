@@ -32,6 +32,39 @@ service cloud.firestore {
         && request.auth.token.admin == true;
     }
 
+    function validInventoryRecord(data) {
+      return data.keys().hasAll([
+          "bloodBankId", "componentType", "bloodGroup", "rhFactor",
+          "unitsAvailable", "unitsReserved", "collectionDate", "expiryDate",
+          "storageLocation", "status", "createdAt", "updatedAt"
+        ])
+        && data.bloodBankId is string
+        && data.bloodBankId.size() > 0
+        && data.componentType in [
+          "wholeBlood", "redCells", "plasma", "platelets", "cryoprecipitate"
+        ]
+        && data.status in [
+          "available", "reserved", "dispatched", "expired",
+          "quarantined", "discarded"
+        ]
+        && (
+          (data.bloodGroup in ["A+", "B+", "O+", "AB+"] && data.rhFactor == "positive")
+          || (data.bloodGroup in ["A-", "B-", "O-", "AB-"] && data.rhFactor == "negative")
+        )
+        && data.unitsAvailable is int
+        && data.unitsAvailable >= 0
+        && data.unitsAvailable <= 9007199254740991
+        && data.unitsReserved is int
+        && data.unitsReserved >= 0
+        && data.unitsReserved <= 9007199254740991
+        && data.collectionDate is timestamp
+        && data.expiryDate is timestamp
+        && data.collectionDate <= data.expiryDate
+        && data.storageLocation is string
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
     match /donorProfiles/{userId} {
       allow read: if activeUser() && request.auth.uid == userId;
       allow create: if activeUser()
@@ -60,15 +93,23 @@ service cloud.firestore {
     match /bloodInventory/{inventoryId} {
       allow read: if bloodBankMember(resource.data.bloodBankId) || trustedAdmin();
       allow create: if bloodBankMember(request.resource.data.bloodBankId)
+        && validInventoryRecord(request.resource.data)
+        && request.resource.data.keys().hasOnly([
+          "bloodBankId", "componentType", "bloodGroup", "rhFactor",
+          "unitsAvailable", "unitsReserved", "collectionDate", "expiryDate",
+          "storageLocation", "status", "createdAt", "updatedAt"
+        ])
         && request.resource.data.createdAt == request.time
         && request.resource.data.updatedAt == request.time;
       allow update: if bloodBankMember(resource.data.bloodBankId)
         && request.resource.data.bloodBankId == resource.data.bloodBankId
         && request.resource.data.createdAt == resource.data.createdAt
+        && validInventoryRecord(request.resource.data)
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           "componentType", "bloodGroup", "rhFactor", "storageLocation",
-          "status", "updatedAt"
-        ]);
+          "collectionDate", "expiryDate", "status", "updatedAt"
+        ])
+        && request.resource.data.updatedAt == request.time;
       allow delete: if false;
     }
 

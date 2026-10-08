@@ -8,6 +8,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { getBloodRequest, listAdminRequests, listRequestEvents } from "@/lib/bloodRequests";
 import { db } from "@/lib/firebase";
 import { collection, getDocs, query, where } from "firebase/firestore";
+import { operationalAvailableUnits } from "@/lib/inventoryAvailability";
 import type { BloodRequest } from "@/types/domain";
 
 const readable = (value: string) => value.replace(/([A-Z])/g, " $1").replace(/^./, (letter) => letter.toUpperCase());
@@ -158,7 +159,13 @@ export function AdminRequestDetail() {
         setEvents(nextEvents);
         if (nextRequest) {
           const snapshot = await getDocs(query(collection(db, "bloodInventory"), where("bloodGroup", "==", nextRequest.bloodGroup)));
-          setAvailable(snapshot.docs.reduce((sum, item) => sum + (item.data().status === "available" && item.data().componentType === nextRequest.componentType && (!nextRequest.rhFactor || item.data().rhFactor === nextRequest.rhFactor) ? Number(item.data().unitsAvailable || 0) : 0), 0));
+          setAvailable(snapshot.docs.reduce((sum, item) => {
+            const stock = item.data();
+            return stock.componentType === nextRequest.componentType
+              && (!nextRequest.rhFactor || stock.rhFactor === nextRequest.rhFactor)
+              ? sum + operationalAvailableUnits(stock)
+              : sum;
+          }, 0));
         }
       })
       .catch(() => setError("This request could not be loaded."))
