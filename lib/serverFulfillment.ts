@@ -2,6 +2,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import type { BloodRequest, FulfillmentAllocation } from "@/types/domain";
 import { getAdminServices } from "@/lib/firebaseAdmin";
 import { isOperationallyEligibleInventory } from "@/lib/inventoryAvailability";
+import { requireVerifiedOrganizationActor } from "@/lib/serverOrganizationOnboarding";
 
 type OrganizationActor = {
   uid: string;
@@ -13,20 +14,8 @@ async function requireOrganizationActor(
   idToken: string,
   expectedRole: "hospital" | "bloodBank",
 ): Promise<OrganizationActor> {
-  const { auth, db } = getAdminServices();
-  const decoded = await auth.verifyIdToken(idToken, true);
-  const profile = await db.collection("users").doc(decoded.uid).get();
-  const data = profile.data();
-  if (
-    !profile.exists
-    || data?.role !== expectedRole
-    || data.status === "disabled"
-    || typeof data.organizationId !== "string"
-    || !data.organizationId
-  ) {
-    throw new Error(`${expectedRole === "hospital" ? "Hospital" : "Blood-bank"} authorization is required.`);
-  }
-  return { uid: decoded.uid, organizationId: data.organizationId, db };
+  const actor = await requireVerifiedOrganizationActor(idToken, expectedRole);
+  return { uid: actor.uid, organizationId: actor.organizationId, db: actor.db };
 }
 
 function requestEvent(

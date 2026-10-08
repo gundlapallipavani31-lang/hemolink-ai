@@ -1,6 +1,7 @@
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { adminErrorResponse, bearerToken } from "@/lib/adminAuth";
 import { getAdminServices } from "@/lib/firebaseAdmin";
+import { requireVerifiedOrganizationActor } from "@/lib/serverOrganizationOnboarding";
 
 const groups = ["A+", "A-", "B+", "B-", "O+", "O-", "AB+", "AB-"];
 const components = ["wholeBlood", "redCells", "plasma", "platelets", "cryoprecipitate"];
@@ -18,6 +19,9 @@ export async function POST(request: Request) {
       && actorData?.status !== "disabled" && decoded.admin === true;
     const bloodBankActor = actor.exists && actorData?.role === "bloodBank"
       && actorData?.status !== "disabled" && typeof actorData?.organizationId === "string";
+    if (bloodBankActor) {
+      await requireVerifiedOrganizationActor(token, "bloodBank");
+    }
     if (!trustedAdmin && !bloodBankActor) throw new Error("Donation recording authorization is required.");
     let body: Record<string, unknown>;
     try { body = await request.json() as Record<string, unknown>; } catch { return Response.json({ error: "A valid JSON body is required." }, { status: 400 }); }

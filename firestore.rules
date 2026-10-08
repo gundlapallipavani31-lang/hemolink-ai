@@ -14,16 +14,27 @@ service cloud.firestore {
       return signedIn() && profile().status != "disabled";
     }
 
-    function bloodBankMember(bloodBankId) {
+    function verifiedOrganizationMember(organizationId, expectedType) {
+      let membershipPath = /databases/$(database)/documents/organizationMembers/$(organizationId + "_" + request.auth.uid);
+      let organization = get(/databases/$(database)/documents/organizations/$(organizationId)).data;
+      let membership = get(membershipPath).data;
       return activeUser()
-        && profile().role == "bloodBank"
-        && profile().organizationId == bloodBankId;
+        && profile().organizationId == organizationId
+        && profile().role == expectedType
+        && organization.type == expectedType
+        && organization.verificationStatus == "verified"
+        && exists(membershipPath)
+        && membership.organizationId == organizationId
+        && membership.userId == request.auth.uid
+        && membership.status == "active";
+    }
+
+    function bloodBankMember(bloodBankId) {
+      return verifiedOrganizationMember(bloodBankId, "bloodBank");
     }
 
     function hospitalMember(hospitalId) {
-      return activeUser()
-        && profile().role == "hospital"
-        && profile().organizationId == hospitalId;
+      return verifiedOrganizationMember(hospitalId, "hospital");
     }
 
     function trustedAdmin() {
@@ -126,12 +137,10 @@ service cloud.firestore {
     }
 
     match /organizationRequests/{requestId} {
-      allow read: if activeUser() && resource.data.requestedBy == request.auth.uid;
-      allow create: if activeUser()
-        && profile().role == "hospital"
-        && !profile().organizationId
-        && request.resource.data.requestedBy == request.auth.uid
-        && request.resource.data.status == "pending";
+      allow read: if activeUser()
+        && (resource.data.requesterUserId == request.auth.uid
+          || resource.data.requestedBy == request.auth.uid);
+      allow create, update, delete: if false;
       allow update, delete: if false;
     }
 

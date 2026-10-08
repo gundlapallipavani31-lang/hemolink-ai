@@ -1,24 +1,14 @@
 import { FieldValue } from "firebase-admin/firestore";
 import { adminErrorResponse, bearerToken } from "@/lib/adminAuth";
-import { getAdminServices } from "@/lib/firebaseAdmin";
+import { requireVerifiedOrganizationActor } from "@/lib/serverOrganizationOnboarding";
 import { createNotification } from "@/lib/notifications";
 
 export async function POST(request: Request) {
   try {
     const token = bearerToken(request);
     if (!token) return Response.json({ error: "Authentication required." }, { status: 401 });
-    const { auth, db } = getAdminServices();
-    const decoded = await auth.verifyIdToken(token, true);
-    const profileSnapshot = await db.collection("users").doc(decoded.uid).get();
-    const profile = profileSnapshot.data();
-    if (
-      !profileSnapshot.exists
-      || profile?.role !== "hospital"
-      || profile.status === "disabled"
-      || !profile.organizationId
-    ) {
-      throw new Error("Hospital authorization is required.");
-    }
+    const actor = await requireVerifiedOrganizationActor(token, "hospital");
+    const { db } = actor;
     const body = (await request.json()) as { requestId?: string };
     if (!body.requestId) throw new Error("Request ID is required.");
     const requestId = body.requestId;
@@ -27,31 +17,31 @@ export async function POST(request: Request) {
       const requestSnapshot = await transaction.get(requestRef);
       if (!requestSnapshot.exists) throw new Error("Blood request not found.");
       const bloodRequest = requestSnapshot.data()!;
-      if (!profile.organizationId || bloodRequest.hospitalId !== profile.organizationId || !["submitted", "under_review"].includes(bloodRequest.status)) {
+      if (bloodRequest.hospitalId !== actor.organizationId || !["submitted", "under_review"].includes(bloodRequest.status)) {
         throw new Error("This request cannot be cancelled.");
       }
       transaction.update(requestRef, { status: "cancelled", updatedAt: FieldValue.serverTimestamp() });
       const eventRef = db.collection("bloodRequestEvents").doc();
       transaction.set(eventRef, {
         requestId,
-        actorUserId: decoded.uid,
+        actorUserId: actor.uid,
         eventType: "cancelled",
         metadata: {},
         createdAt: FieldValue.serverTimestamp(),
       });
       const auditRef = db.collection("auditLogs").doc();
       transaction.set(auditRef, {
-        actorUserId: decoded.uid,
+        actorUserId: actor.uid,
         action: "request.cancelled",
         entityType: "bloodRequest",
         entityId: requestId,
-        organizationId: profile.organizationId,
+        organizationId: actor.organizationId,
         metadata: {},
         createdAt: FieldValue.serverTimestamp(),
       });
     });
     await createNotification({
-      recipientUserId: decoded.uid,
+      recipientUserId: actor.uid,
       type: "request",
       title: "Blood request cancelled",
       body: "Your blood request was cancelled.",

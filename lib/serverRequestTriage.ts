@@ -1,7 +1,7 @@
 import { FieldValue, type DocumentData, type Firestore, type Transaction } from "firebase-admin/firestore";
 import { createNotification } from "@/lib/notifications";
 import { requireTrustedAdmin } from "@/lib/adminAuth";
-import { getAdminServices } from "@/lib/firebaseAdmin";
+import { requireVerifiedOrganizationActor } from "@/lib/serverOrganizationOnboarding";
 import type { BloodRequest } from "@/types/domain";
 
 export type AdminTriageAction =
@@ -210,30 +210,18 @@ export async function respondToInformationRequest(
   requestId: string,
   message: string,
 ) {
-  const { auth, db } = getAdminServices();
-  const decoded = await auth.verifyIdToken(idToken, true);
+  const actor = await requireVerifiedOrganizationActor(idToken, "hospital");
+  const { db } = actor;
   const cleanMessage = message.trim();
   if (cleanMessage.length < 2 || cleanMessage.length > 1000) {
     throw new Error("Enter a response between 2 and 1000 characters.");
   }
 
   const result = await db.runTransaction(async (transaction) => {
-    const [requestSnapshot, profileSnapshot] = await Promise.all([
-      transaction.get(db.collection("bloodRequests").doc(requestId)),
-      transaction.get(db.collection("users").doc(decoded.uid)),
-    ]);
-    const profile = profileSnapshot.data();
-    if (
-      !profileSnapshot.exists
-      || profile?.role !== "hospital"
-      || profile.status === "disabled"
-      || typeof profile.organizationId !== "string"
-    ) {
-      throw new Error("Hospital authorization is required.");
-    }
+    const requestSnapshot = await transaction.get(db.collection("bloodRequests").doc(requestId));
     if (!requestSnapshot.exists) throw new Error("Blood request not found.");
     const request = requestSnapshot.data() as BloodRequest;
-    if (request.hospitalId !== profile.organizationId) {
+    if (request.hospitalId !== actor.organizationId) {
       throw new Error("Hospital authorization is required for this request.");
     }
     if (request.status !== "needs_information") {
@@ -246,7 +234,7 @@ export async function respondToInformationRequest(
     });
     writeEventAndAudit(transaction, db, {
       requestId,
-      actorUserId: decoded.uid,
+      actorUserId: actor.uid,
       organizationId: request.hospitalId,
       eventType: "hospital_response",
       action: "request.hospital_responded",
