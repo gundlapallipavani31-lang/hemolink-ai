@@ -1,2 +1,6 @@
 import { AdminOrganizationsPage } from "@/components/admin/AdminOperations";
-export default AdminOrganizationsPage;
+import { AdminRouteGuard } from "@/components/admin/AdminRouteGuard";
+
+export default function Page() {
+  return <AdminRouteGuard><AdminOrganizationsPage /></AdminRouteGuard>;
+}

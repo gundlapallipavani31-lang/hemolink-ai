@@ -1,2 +1,6 @@
 import { HospitalProfilePage } from "@/components/hospital/HospitalWorkspace";
-export default HospitalProfilePage;
+import { HospitalRouteGuard } from "@/components/hospital/HospitalRouteGuard";
+
+export default function Page() {
+  return <HospitalRouteGuard><HospitalProfilePage /></HospitalRouteGuard>;
+}

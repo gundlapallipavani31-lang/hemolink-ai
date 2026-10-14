@@ -1,2 +1,6 @@
 import { AdminDashboardOverview } from "@/components/admin/AdminOperations";
-export default AdminDashboardOverview;
+import { AdminRouteGuard } from "@/components/admin/AdminRouteGuard";
+
+export default function Page() {
+  return <AdminRouteGuard><AdminDashboardOverview /></AdminRouteGuard>;
+}

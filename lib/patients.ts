@@ -18,6 +18,17 @@ export type PatientInput = Pick<
   "externalReference" | "displayName" | "bloodGroup" | "rhFactor" | "dateOfBirth" | "status"
 >;
 
+function definedPatientFields(patient: Partial<PatientInput>) {
+  return {
+    ...(patient.externalReference === undefined ? {} : { externalReference: patient.externalReference }),
+    ...(patient.displayName === undefined ? {} : { displayName: patient.displayName }),
+    ...(patient.bloodGroup === undefined ? {} : { bloodGroup: patient.bloodGroup }),
+    ...(patient.rhFactor === undefined ? {} : { rhFactor: patient.rhFactor }),
+    ...(patient.dateOfBirth === undefined ? {} : { dateOfBirth: patient.dateOfBirth }),
+    ...(patient.status === undefined ? {} : { status: patient.status }),
+  };
+}
+
 export async function listPatients(hospitalId: string) {
   const snapshot = await getDocs(
     query(
@@ -31,9 +42,9 @@ export async function listPatients(hospitalId: string) {
 
 export async function createPatient(hospitalId: string, createdBy: string, patient: PatientInput) {
   return addDoc(collection(db, "patients"), {
+    ...definedPatientFields(patient),
     hospitalId,
     createdBy,
-    ...patient,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
@@ -41,7 +52,7 @@ export async function createPatient(hospitalId: string, createdBy: string, patie
 
 export async function updatePatient(patientId: string, patient: Partial<PatientInput>) {
   await updateDoc(doc(db, "patients", patientId), {
-    ...patient,
+    ...definedPatientFields(patient),
     updatedAt: serverTimestamp(),
   });
 }

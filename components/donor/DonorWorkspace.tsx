@@ -10,16 +10,64 @@ import type { BloodGroup, DonorProfile, RhFactor } from "@/types/domain";
 
 const bloodGroups: BloodGroup[] = ["A+", "A-", "B+", "B-", "O+", "O-", "AB+", "AB-"];
 
+function getDonorProfileErrorMessage(error: unknown, operation: "load" | "save") {
+  const code =
+    typeof error === "object"
+    && error !== null
+    && "code" in error
+    && typeof error.code === "string"
+    && /^[a-z0-9/_-]+$/i.test(error.code)
+      ? error.code
+      : "unknown";
+
+  if (code.endsWith("permission-denied")) {
+    return `Donor profile ${operation === "load" ? "access" : "update"} was denied (Firebase code: ${code}). If your account is active, contact support and share this code.`;
+  }
+  if (code.endsWith("unavailable")) {
+    return `The donor profile service is temporarily unavailable (Firebase code: ${code}). Try again shortly.`;
+  }
+  return `We could not ${operation === "load" ? "load" : "save"} your donor profile (Firebase code: ${code}). Try again, and contact support if the issue continues.`;
+}
+
 function useDonorProfile() {
   const { firebaseUser } = useAuth();
-  const [profile, setProfile] = useState<DonorProfile | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [loaded, setLoaded] = useState<{
+    uid: string;
+    profile: DonorProfile | null;
+    error: string;
+  } | null>(null);
   useEffect(() => {
-    if (!firebaseUser) return;
-    getDonorProfile(firebaseUser.uid).then(setProfile).catch(() => setError("We could not load your donor profile.")).finally(() => setLoading(false));
+    let active = true;
+    if (!firebaseUser) return () => { active = false; };
+    getDonorProfile(firebaseUser.uid)
+      .then((nextProfile) => {
+        if (active) {
+          setLoaded({ uid: firebaseUser.uid, profile: nextProfile, error: "" });
+        }
+      })
+      .catch((reason: unknown) => {
+        if (active) {
+          setLoaded({
+            uid: firebaseUser.uid,
+            profile: null,
+            error: getDonorProfileErrorMessage(reason, "load"),
+          });
+        }
+      });
+    return () => { active = false; };
   }, [firebaseUser]);
-  return { profile, setProfile, loading, error, setError };
+
+  const current = loaded?.uid === firebaseUser?.uid ? loaded : null;
+  const setProfile = (profile: DonorProfile | null) => {
+    if (firebaseUser) setLoaded({ uid: firebaseUser.uid, profile, error: "" });
+  };
+
+  return {
+    profile: current?.profile ?? null,
+    setProfile,
+    loading: Boolean(firebaseUser) && current === null,
+    error: current?.error ?? "",
+  };
 }
 
 export function DonorDashboard() {
@@ -44,6 +92,11 @@ export function DonorDashboard() {
           </div>
         ))}
       </div>
+      {!profile && (
+        <p role="status" className="mt-5 rounded-lg border border-border bg-surface p-4 text-sm text-foreground-muted">
+          Your donor profile has not been set up yet. Complete your profile to add your donor details.
+        </p>
+      )}
       <div className="mt-8 flex flex-wrap gap-3">
         <Link href="/donor/profile" className="rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-white">Complete profile</Link>
         <Link href="/donor/availability" className="rounded-lg border border-border-strong px-4 py-3 text-sm font-semibold text-primary">Set availability</Link>
@@ -67,30 +120,37 @@ export function DonorDashboard() {
 
 export function DonorProfilePage() {
   const { firebaseUser, userProfile } = useAuth();
-  const { profile, setProfile, loading, error, setError } = useDonorProfile();
+  const { profile, setProfile, loading, error } = useDonorProfile();
   const [saved, setSaved] = useState("");
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
   if (loading) return <LoadingState title="Loading donor profile" />;
   if (error) return <ErrorState description={error} />;
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (!firebaseUser) return;
     const data = new FormData(event.currentTarget);
-    setSaving(true); setSaved(""); setError("");
+    setSaving(true); setSaved(""); setSaveError("");
     try {
       const next = { phone: String(data.get("phone") || "").trim(), bloodGroup: String(data.get("bloodGroup") || "") as BloodGroup, rhFactor: String(data.get("rhFactor") || "") as RhFactor, city: String(data.get("city") || "").trim(), availabilityStatus: String(data.get("availabilityStatus") || "unknown") as DonorProfile["availabilityStatus"], consentToEmergencyContact: data.get("consent") === "on" };
       await saveDonorProfile(firebaseUser.uid, next); setProfile({ ...(profile || { userId: firebaseUser.uid, eligibilityStatus: "unknown", availabilityStatus: "unknown", consentToEmergencyContact: false }), ...next }); setSaved("Your donor profile was saved.");
-    } catch { setError("We could not save your donor profile. Please try again."); } finally { setSaving(false); }
+    } catch (reason: unknown) {
+      setSaveError(getDonorProfileErrorMessage(reason, "save"));
+    } finally {
+      setSaving(false);
+    }
   }
-  return <main className="mx-auto max-w-3xl px-5 py-10 sm:px-8"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-medical">Donor profile</p><h1 className="mt-3 text-4xl font-semibold tracking-[-0.05em] text-foreground">Your information</h1><p className="mt-4 text-sm leading-6 text-foreground-muted">Manage permitted contact and availability details. Verified eligibility and donation records remain read-only.</p><div className="mt-8 grid gap-4 rounded-[1rem] border border-border bg-surface p-6 sm:grid-cols-2"><div><p className="text-xs uppercase tracking-[0.12em] text-foreground-subtle">Full name</p><p className="mt-2 font-medium text-foreground">{userProfile?.name || "Not recorded"}</p></div><div><p className="text-xs uppercase tracking-[0.12em] text-foreground-subtle">Email</p><p className="mt-2 font-medium text-foreground">{userProfile?.email || firebaseUser?.email || "Not recorded"}</p></div></div><form onSubmit={submit} className="mt-5 space-y-5 rounded-[1rem] border border-border bg-surface p-6 shadow-xs"><label className="grid gap-2 text-sm font-medium">Phone<input name="phone" type="tel" defaultValue={profile?.phone || userProfile?.phone || ""} className="h-12 rounded-lg border border-border-strong px-3" /></label><label className="grid gap-2 text-sm font-medium">Blood group<select name="bloodGroup" defaultValue={profile?.bloodGroup || ""} className="h-12 rounded-lg border border-border-strong bg-surface px-3"><option value="">Select blood group</option>{bloodGroups.map((group) => <option key={group}>{group}</option>)}</select></label><label className="grid gap-2 text-sm font-medium">RH factor<select name="rhFactor" defaultValue={profile?.rhFactor || ""} className="h-12 rounded-lg border border-border-strong bg-surface px-3"><option value="">Select RH factor</option><option value="positive">Positive</option><option value="negative">Negative</option></select></label><label className="grid gap-2 text-sm font-medium">City<input name="city" defaultValue={profile?.city || ""} className="h-12 rounded-lg border border-border-strong px-3" placeholder="Your city" /></label><label className="grid gap-2 text-sm font-medium">Availability<select name="availabilityStatus" defaultValue={profile?.availabilityStatus || "unknown"} className="h-12 rounded-lg border border-border-strong bg-surface px-3"><option value="available">Available</option><option value="unavailable">Unavailable</option><option value="unknown">Unknown</option></select></label><label className="flex items-start gap-2 text-sm text-foreground-muted"><input name="consent" type="checkbox" defaultChecked={profile?.consentToEmergencyContact} className="mt-1 accent-primary" />Allow contact for future emergency opportunities.</label>{error && <p role="alert" className="text-sm text-danger">{error}</p>}{saved && <p role="status" className="text-sm text-success">{saved}</p>}<button disabled={saving} className="h-12 rounded-lg bg-primary px-5 text-sm font-semibold text-white disabled:opacity-60">{saving ? "Saving…" : "Save profile"}</button></form></main>;
+  return <main className="mx-auto max-w-3xl px-5 py-10 sm:px-8"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-medical">Donor profile</p><h1 className="mt-3 text-4xl font-semibold tracking-[-0.05em] text-foreground">Your information</h1><p className="mt-4 text-sm leading-6 text-foreground-muted">Manage permitted contact and availability details. Verified eligibility and donation records remain read-only.</p>{!profile && <p role="status" className="mt-5 rounded-lg border border-border bg-surface p-4 text-sm text-foreground-muted">Your donor profile has not been set up yet. Complete the details below and save to create it.</p>}<div className="mt-8 grid gap-4 rounded-[1rem] border border-border bg-surface p-6 sm:grid-cols-2"><div><p className="text-xs uppercase tracking-[0.12em] text-foreground-subtle">Full name</p><p className="mt-2 font-medium text-foreground">{userProfile?.name || "Not recorded"}</p></div><div><p className="text-xs uppercase tracking-[0.12em] text-foreground-subtle">Email</p><p className="mt-2 font-medium text-foreground">{userProfile?.email || firebaseUser?.email || "Not recorded"}</p></div></div><form onSubmit={submit} className="mt-5 space-y-5 rounded-[1rem] border border-border bg-surface p-6 shadow-xs"><label className="grid gap-2 text-sm font-medium">Phone<input name="phone" type="tel" defaultValue={profile?.phone || userProfile?.phone || ""} className="h-12 rounded-lg border border-border-strong px-3" /></label><label className="grid gap-2 text-sm font-medium">Blood group<select name="bloodGroup" defaultValue={profile?.bloodGroup || ""} className="h-12 rounded-lg border border-border-strong bg-surface px-3"><option value="">Select blood group</option>{bloodGroups.map((group) => <option key={group}>{group}</option>)}</select></label><label className="grid gap-2 text-sm font-medium">RH factor<select name="rhFactor" defaultValue={profile?.rhFactor || ""} className="h-12 rounded-lg border border-border-strong bg-surface px-3"><option value="">Select RH factor</option><option value="positive">Positive</option><option value="negative">Negative</option></select></label><label className="grid gap-2 text-sm font-medium">City<input name="city" defaultValue={profile?.city || ""} className="h-12 rounded-lg border border-border-strong px-3" placeholder="Your city" /></label><label className="grid gap-2 text-sm font-medium">Availability<select name="availabilityStatus" defaultValue={profile?.availabilityStatus || "unknown"} className="h-12 rounded-lg border border-border-strong bg-surface px-3"><option value="available">Available</option><option value="unavailable">Unavailable</option><option value="unknown">Unknown</option></select></label><label className="flex items-start gap-2 text-sm text-foreground-muted"><input name="consent" type="checkbox" defaultChecked={profile?.consentToEmergencyContact} className="mt-1 accent-primary" />Allow contact for future emergency opportunities.</label>{saveError && <p role="alert" className="text-sm text-danger">{saveError}</p>}{saved && <p role="status" className="text-sm text-success">{saved}</p>}<button disabled={saving} className="h-12 rounded-lg bg-primary px-5 text-sm font-semibold text-white disabled:opacity-60">{saving ? "Saving…" : "Save profile"}</button></form></main>;
 }
 
-export function DonorEligibilityPage() { const { profile, loading, error } = useDonorProfile(); if (loading) return <LoadingState />; if (error) return <ErrorState description={error} />; return <main className="mx-auto max-w-4xl px-5 py-10 sm:px-8"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-medical">Eligibility</p><h1 className="mt-3 text-4xl font-semibold text-foreground">Donation eligibility</h1><div className="mt-8 rounded-[1rem] border border-border bg-surface p-6"><p className="text-sm text-foreground-muted">Current status</p><p className="mt-2 text-2xl font-semibold capitalize text-primary">{profile?.eligibilityStatus || "unknown"}</p><p className="mt-5 text-sm leading-6 text-foreground-muted">Eligibility information will be provided by authorized healthcare or blood-bank staff. HemoLink AI does not infer medical eligibility here.</p></div></main>; }
+export function DonorEligibilityPage() { const { profile, loading, error } = useDonorProfile(); if (loading) return <LoadingState />; if (error) return <ErrorState title="Eligibility unavailable" description={error} />; return <main className="mx-auto max-w-4xl px-5 py-10 sm:px-8"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-medical">Eligibility</p><h1 className="mt-3 text-4xl font-semibold text-foreground">Donation eligibility</h1>{!profile && <p role="status" className="mt-5 rounded-lg border border-border bg-surface p-4 text-sm text-foreground-muted">Your donor profile has not been set up yet. Add your information in <Link href="/donor/profile" className="font-semibold text-primary underline">your donor profile</Link>.</p>}<div className="mt-8 rounded-[1rem] border border-border bg-surface p-6"><p className="text-sm text-foreground-muted">Current status</p><p className="mt-2 text-2xl font-semibold capitalize text-primary">{profile?.eligibilityStatus || "unknown"}</p><p className="mt-5 text-sm leading-6 text-foreground-muted">Eligibility information will be provided by authorized healthcare or blood-bank staff. HemoLink AI does not infer medical eligibility here.</p></div></main>; }
 export function DonorAvailabilityPage() {
   const { firebaseUser } = useAuth();
-  const [status, setStatus] = useState<"available" | "unavailable" | "unknown" | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loaded, setLoaded] = useState<{
+    uid: string;
+    status: "available" | "unavailable" | "unknown" | null;
+    error: string;
+  } | null>(null);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
   const [saved, setSaved] = useState("");
 
   useEffect(() => {
@@ -98,28 +158,50 @@ export function DonorAvailabilityPage() {
     if (!firebaseUser) return () => { active = false; };
     getDonorProfile(firebaseUser.uid)
       .then((profile) => {
-        if (active) setStatus(profile?.availabilityStatus || null);
+        if (active) {
+          setLoaded({
+            uid: firebaseUser.uid,
+            status: profile?.availabilityStatus || null,
+            error: "",
+          });
+        }
       })
       .catch((reason) => {
-        if (active) setError(reason instanceof Error ? reason.message : "Availability could not be loaded.");
-      })
-      .finally(() => {
-        if (active) setLoading(false);
+        if (active) {
+          setLoaded({
+            uid: firebaseUser.uid,
+            status: null,
+            error: getDonorProfileErrorMessage(reason, "load"),
+          });
+        }
       });
     return () => { active = false; };
   }, [firebaseUser]);
 
+  const current = loaded?.uid === firebaseUser?.uid ? loaded : null;
+  const status = current?.status ?? null;
+  const error = current?.error ?? "";
+  const loading = Boolean(firebaseUser) && current === null;
+
   async function changeAvailability(value: "available" | "unavailable") {
     if (!firebaseUser) return;
     setSaving(true);
-    setError("");
+    setLoaded((previous) => ({
+      uid: firebaseUser.uid,
+      status: previous?.uid === firebaseUser.uid ? previous.status : null,
+      error: "",
+    }));
     setSaved("");
     try {
       await updateDonorAvailability(firebaseUser.uid, value);
-      setStatus(value);
+      setLoaded({ uid: firebaseUser.uid, status: value, error: "" });
       setSaved("Availability saved.");
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Availability could not be saved.");
+      setLoaded((previous) => ({
+        uid: firebaseUser.uid,
+        status: previous?.uid === firebaseUser.uid ? previous.status : null,
+        error: getDonorProfileErrorMessage(reason, "save"),
+      }));
     } finally {
       setSaving(false);
     }
@@ -132,7 +214,7 @@ export function DonorAvailabilityPage() {
       <p className="text-xs font-semibold uppercase tracking-[0.18em] text-medical">Availability</p>
       <h1 className="mt-3 text-4xl font-semibold text-foreground">Your availability</h1>
       <p className="mt-4 text-sm text-foreground-muted">Set whether you are open to future opportunities. This does not create or promise a donation request.</p>
-      {!status ? (
+      {error ? null : !status ? (
         <div className="mt-8 rounded-xl border border-border bg-surface p-5">
           <p className="text-sm text-foreground-muted">Complete your donor profile before setting availability.</p>
           <Link href="/donor/profile" className="mt-4 inline-flex rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-white">Complete donor profile</Link>

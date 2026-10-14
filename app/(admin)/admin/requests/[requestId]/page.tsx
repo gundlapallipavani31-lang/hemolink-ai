@@ -1,2 +1,6 @@
 import { AdminRequestDetail } from "@/components/admin/requests/AdminRequests";
-export default AdminRequestDetail;
+import { AdminRouteGuard } from "@/components/admin/AdminRouteGuard";
+
+export default function Page() {
+  return <AdminRouteGuard><AdminRequestDetail /></AdminRouteGuard>;
+}

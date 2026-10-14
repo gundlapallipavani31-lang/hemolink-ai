@@ -10,13 +10,38 @@ const label = (value: string) => value.replace(/([A-Z])/g, " $1").replace(/^./, 
 
 export function DonationHistory({ compact = false }: { compact?: boolean }) {
   const { firebaseUser } = useAuth();
-  const [donations, setDonations] = useState<Donation[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [loaded, setLoaded] = useState<{
+    uid: string;
+    donations: Donation[];
+    error: string;
+  } | null>(null);
+
   useEffect(() => {
-    if (!firebaseUser) return;
-    listOwnDonations(() => firebaseUser.getIdToken()).then(setDonations).catch((reason) => setError(reason instanceof Error ? reason.message : "Donation history could not be loaded.")).finally(() => setLoading(false));
+    let active = true;
+    if (!firebaseUser) return () => { active = false; };
+    listOwnDonations(() => firebaseUser.getIdToken())
+      .then((donations) => {
+        if (active) setLoaded({ uid: firebaseUser.uid, donations, error: "" });
+      })
+      .catch((reason: unknown) => {
+        if (active) {
+          setLoaded({
+            uid: firebaseUser.uid,
+            donations: [],
+            error: reason instanceof Error
+              ? reason.message
+              : "Donation history could not be loaded.",
+          });
+        }
+      });
+    return () => { active = false; };
   }, [firebaseUser]);
+
+  const current = loaded?.uid === firebaseUser?.uid ? loaded : null;
+  const donations = current?.donations ?? [];
+  const error = current?.error ?? "";
+  const loading = Boolean(firebaseUser) && current === null;
+
   if (loading) return <LoadingState title="Loading donation history" />;
   if (error) return <ErrorState title="Donation history unavailable" description={error} />;
   if (donations.length === 0) return <EmptyState title="No donations recorded yet." description="Verified donation records will appear here when an authorized blood-bank or administrator records them." />;

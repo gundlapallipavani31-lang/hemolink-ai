@@ -1,2 +1,6 @@
 import { AdminInventoryPage } from "@/components/admin/AdminOperations";
-export default AdminInventoryPage;
+import { AdminRouteGuard } from "@/components/admin/AdminRouteGuard";
+
+export default function Page() {
+  return <AdminRouteGuard><AdminInventoryPage /></AdminRouteGuard>;
+}

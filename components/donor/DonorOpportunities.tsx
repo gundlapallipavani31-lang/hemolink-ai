@@ -30,9 +30,11 @@ function formatDate(value: string | null) {
 
 export function DonorOpportunities() {
   const { firebaseUser } = useAuth();
-  const [opportunities, setOpportunities] = useState<DonorOpportunityView[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [loaded, setLoaded] = useState<{
+    uid: string;
+    opportunities: DonorOpportunityView[];
+    error: string;
+  } | null>(null);
   const [savingId, setSavingId] = useState("");
 
   const load = useCallback(async () => {
@@ -49,26 +51,36 @@ export function DonorOpportunities() {
 
   useEffect(() => {
     let active = true;
+    if (!firebaseUser) return () => { active = false; };
     void load()
       .then((result) => {
         if (active) {
-          setOpportunities(result);
-          setError("");
+          setLoaded({ uid: firebaseUser.uid, opportunities: result, error: "" });
         }
       })
       .catch((reason) => {
-        if (active) setError(reason instanceof Error ? reason.message : "Donor opportunities could not be loaded.");
-      })
-      .finally(() => {
-        if (active) setLoading(false);
+        if (active) {
+          setLoaded({
+            uid: firebaseUser.uid,
+            opportunities: [],
+            error: reason instanceof Error
+              ? reason.message
+              : "Donor opportunities could not be loaded.",
+          });
+        }
       });
     return () => { active = false; };
-  }, [load]);
+  }, [firebaseUser, load]);
+
+  const current = loaded?.uid === firebaseUser?.uid ? loaded : null;
+  const opportunities = current?.opportunities ?? [];
+  const error = current?.error ?? "";
+  const loading = Boolean(firebaseUser) && current === null;
 
   async function respond(opportunityId: string, action: "accept" | "decline") {
     if (!firebaseUser) return;
+    const uid = firebaseUser.uid;
     setSavingId(opportunityId);
-    setError("");
     try {
       const token = await firebaseUser.getIdToken();
       const response = await fetch(`/api/donor/opportunities/${opportunityId}`, {
@@ -81,9 +93,16 @@ export function DonorOpportunities() {
       });
       const result = await response.json() as { error?: string };
       if (!response.ok) throw new Error(result.error || "Your response could not be saved.");
-      setOpportunities(await load());
+      setLoaded({ uid, opportunities: await load(), error: "" });
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Your response could not be saved.");
+      setLoaded((previous) => ({
+        uid,
+        opportunities:
+          previous?.uid === uid ? previous.opportunities : [],
+        error: reason instanceof Error
+          ? reason.message
+          : "Your response could not be saved.",
+      }));
     } finally {
       setSavingId("");
     }

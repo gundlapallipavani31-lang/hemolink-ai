@@ -1,2 +1,6 @@
 import { AdminRequestQueue } from "@/components/admin/requests/AdminRequests";
-export default AdminRequestQueue;
+import { AdminRouteGuard } from "@/components/admin/AdminRouteGuard";
+
+export default function Page() {
+  return <AdminRouteGuard><AdminRequestQueue /></AdminRouteGuard>;
+}

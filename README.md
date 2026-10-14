@@ -20,6 +20,43 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## Safe Firebase QA environment
+
+The QA environment uses only the Firebase Auth and Firestore emulators with the fixed demo project ID `demo-hemolink-qa`. QA mode is opt-in; both the browser Firebase SDK and server Firebase Admin SDK require the QA flags and exact loopback emulator settings. If QA configuration is missing or points elsewhere, initialization fails with a warning rather than falling back to a live project. Never use real patient data in this environment.
+
+Prerequisites: Node.js dependencies installed, the Firebase CLI installed, and Java available for the Firestore emulator.
+
+Start the emulators in one PowerShell terminal:
+
+```powershell
+cd C:\Projects\hemolink-ai
+. .\scripts\qa-env.ps1
+firebase emulators:start --only auth,firestore --project demo-hemolink-qa
+```
+
+In a second PowerShell terminal, seed the explicitly synthetic hospital, blood bank, verified memberships, test-only users, and inventory, then start Next.js:
+
+```powershell
+cd C:\Projects\hemolink-ai
+. .\scripts\qa-env.ps1
+npm run qa:seed
+npm run dev
+```
+
+The seeder reports the local-only test credentials. Sign in through the regular login page at `http://localhost:3000/login`. Inventory fixtures include the existing synthetic O+ red-cell lot and a separate `qa-synthetic-a-positive-whole-blood` lot (2 available A+ whole-blood units) for reservation workflow testing. Inventory lots are created only when absent; reseeding does not reset existing lot quantities or reservations. The seeded emergency request fixture is labelled `SYNTHETIC QA ONLY`; no patient records are seeded.
+
+In a third PowerShell terminal, run the authorization and end-to-end workflow checks:
+
+```powershell
+cd C:\Projects\hemolink-ai
+. .\scripts\qa-env.ps1
+npm run qa:verify
+```
+
+The verification checks that unauthenticated and wrong-role requests are denied, then exercises hospital request creation, admin assignment/acknowledgement/approval, blood-bank preparation/dispatch, and hospital receipt confirmation. It verifies the final `fulfilled` state and workflow events against Firestore Emulator.
+
+To clean up, stop the Next.js process and Firebase emulators with `Ctrl+C` in their terminals. The emulators run without data import/export, so stopping them discards the synthetic Auth and Firestore data. Do not start the app with plain `npm run dev` when doing QA; source `scripts/qa-env.ps1` in that terminal first. QA does not require or use production Firebase credentials.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

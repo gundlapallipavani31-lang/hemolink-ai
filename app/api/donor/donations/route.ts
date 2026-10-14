@@ -1,6 +1,16 @@
 import { adminErrorResponse, bearerToken } from "@/lib/adminAuth";
 import { getAdminServices } from "@/lib/firebaseAdmin";
 
+function isFailedPrecondition(error: unknown) {
+  if (typeof error !== "object" || error === null) return false;
+  const code = "code" in error ? error.code : undefined;
+  const status = "status" in error ? error.status : undefined;
+  return code === 9
+    || code === "failed-precondition"
+    || code === "FAILED_PRECONDITION"
+    || status === "FAILED_PRECONDITION";
+}
+
 export async function GET(request: Request) {
   try {
     const token = bearerToken(request);
@@ -37,6 +47,12 @@ export async function GET(request: Request) {
     });
     return Response.json({ donations });
   } catch (error) {
+    if (isFailedPrecondition(error)) {
+      return Response.json(
+        { error: "Donation history is temporarily unavailable. Please try again later." },
+        { status: 503 },
+      );
+    }
     return adminErrorResponse(error);
   }
 }
