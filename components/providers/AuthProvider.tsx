@@ -40,9 +40,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   useEffect(() => {
     let active = true;
+    let authStateVersion = 0;
 
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (!active) return;
+      const requestVersion = ++authStateVersion;
+      const isCurrentRequest = () =>
+        active && requestVersion === authStateVersion;
 
       setFirebaseUser(user);
       setUserProfile(null);
@@ -58,7 +62,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       try {
         const profileSnapshot = await getDoc(doc(db, "users", user.uid));
 
-        if (!active) return;
+        if (!isCurrentRequest()) return;
 
         if (!profileSnapshot.exists()) {
           setProfileError(
@@ -92,13 +96,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
           updatedAt: profileData.updatedAt,
         });
       } catch {
-        if (active) {
+        if (isCurrentRequest()) {
           setProfileError(
             "We could not load your profile. Please refresh and try again.",
           );
         }
       } finally {
-        if (active) setLoading(false);
+        if (isCurrentRequest()) setLoading(false);
       }
     });
 

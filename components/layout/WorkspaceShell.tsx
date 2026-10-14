@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
 import { formatRole } from "@/types/auth";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -41,6 +41,7 @@ const links = {
   administrator: [
     ["Overview", "/admin"],
     ["Requests", "/admin/requests"],
+    ["Patient intakes", "/admin/requests/intakes"],
     ["Users", "/admin/users"],
     ["Donors", "/admin/donors"],
     ["Organizations", "/admin/organizations"],
@@ -50,7 +51,6 @@ const links = {
 } as const;
 
 export function WorkspaceShell({ kind, children }: WorkspaceShellProps) {
-  const pathname = usePathname();
   const { userProfile, firebaseUser } = useAuth();
   const name = userProfile?.name || firebaseUser?.email || "Workspace user";
 
@@ -62,11 +62,9 @@ export function WorkspaceShell({ kind, children }: WorkspaceShellProps) {
           HemoLink <span className="text-medical">AI</span>
         </Link>
         <p className="mt-10 px-3 text-[0.65rem] font-semibold uppercase tracking-[0.18em] text-foreground-subtle">{kind} workspace</p>
-        <nav className="mt-3 grid gap-1" aria-label={`${kind} workspace navigation`}>
-          {links[kind].map(([label, href]) => (
-            <Link key={href} href={href} className={`rounded-lg px-3 py-2.5 text-sm font-medium transition ${pathname === href ? "bg-soft-rose text-primary" : "text-foreground-muted hover:bg-surface-muted hover:text-primary"}`}>{label}</Link>
-          ))}
-        </nav>
+        <Suspense fallback={<WorkspaceNavigationFallback kind={kind} />}>
+          <WorkspaceNavigation kind={kind} />
+        </Suspense>
       </aside>
       <div className="lg:pl-64">
         <header className="sticky top-0 z-10 border-b border-border bg-background/95 backdrop-blur">
@@ -74,12 +72,71 @@ export function WorkspaceShell({ kind, children }: WorkspaceShellProps) {
             <div><p className="text-sm font-semibold text-foreground">{name}</p><p className="text-xs text-foreground-subtle">{userProfile?.role ? formatRole(userProfile.role) : ""}</p></div>
             <Link href="/dashboard" className="text-sm font-medium text-primary hover:text-primary-hover">Main workspace</Link>
           </div>
-          <nav className="flex gap-1 overflow-x-auto border-t border-border px-4 py-2 lg:hidden" aria-label={`${kind} mobile navigation`}>
-            {links[kind].map(([label, href]) => <Link key={href} href={href} className={`whitespace-nowrap rounded-lg px-3 py-2 text-xs font-medium ${pathname === href ? "bg-soft-rose text-primary" : "text-foreground-muted"}`}>{label}</Link>)}
-          </nav>
+          <Suspense fallback={<WorkspaceNavigationFallback kind={kind} mobile />}>
+            <WorkspaceNavigation kind={kind} mobile />
+          </Suspense>
         </header>
         {children}
       </div>
     </div>
+  );
+}
+
+function WorkspaceNavigationFallback({
+  kind,
+  mobile = false,
+}: {
+  kind: WorkspaceShellProps["kind"];
+  mobile?: boolean;
+}) {
+  return (
+    <nav
+      className={mobile
+        ? "flex gap-1 overflow-x-auto border-t border-border px-4 py-2 lg:hidden"
+        : "mt-3 grid gap-1"}
+      aria-label={`${kind} workspace navigation`}
+    >
+      {links[kind].map(([label, href]) => (
+        <Link
+          key={href}
+          href={href}
+          className={mobile
+            ? "whitespace-nowrap rounded-lg px-3 py-2 text-xs font-medium text-foreground-muted"
+            : "rounded-lg px-3 py-2.5 text-sm font-medium text-foreground-muted"}
+        >
+          {label}
+        </Link>
+      ))}
+    </nav>
+  );
+}
+
+function WorkspaceNavigation({
+  kind,
+  mobile = false,
+}: {
+  kind: WorkspaceShellProps["kind"];
+  mobile?: boolean;
+}) {
+  const pathname = usePathname();
+  return (
+    <nav
+      className={mobile
+        ? "flex gap-1 overflow-x-auto border-t border-border px-4 py-2 lg:hidden"
+        : "mt-3 grid gap-1"}
+      aria-label={`${kind} workspace navigation`}
+    >
+      {links[kind].map(([label, href]) => (
+        <Link
+          key={href}
+          href={href}
+          className={mobile
+            ? `whitespace-nowrap rounded-lg px-3 py-2 text-xs font-medium ${pathname === href ? "bg-soft-rose text-primary" : "text-foreground-muted"}`
+            : `rounded-lg px-3 py-2.5 text-sm font-medium transition ${pathname === href ? "bg-soft-rose text-primary" : "text-foreground-muted hover:bg-surface-muted hover:text-primary"}`}
+        >
+          {label}
+        </Link>
+      ))}
+    </nav>
   );
 }

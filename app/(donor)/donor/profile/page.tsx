@@ -1,2 +1,6 @@
 import { DonorProfilePage } from "@/components/donor/DonorWorkspace";
-export default DonorProfilePage;
+import { RoleGuard } from "@/components/layout/RoleGuard";
+
+export default function Page() {
+  return <RoleGuard allowedRoles={["donor"]}><DonorProfilePage /></RoleGuard>;
+}

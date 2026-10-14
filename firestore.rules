@@ -11,7 +11,9 @@ service cloud.firestore {
     }
 
     function activeUser() {
-      return signedIn() && profile().status != "disabled";
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && profile().get("status", "active") != "disabled";
     }
 
     function verifiedOrganizationMember(organizationId, expectedType) {
@@ -173,6 +175,14 @@ service cloud.firestore {
         || hospitalMember(get(/databases/$(database)/documents/bloodRequests/$(resource.data.requestId)).data.hospitalId);
       allow create: if false;
       allow update, delete: if false;
+    }
+
+    match /publicEmergencyIntakes/{intakeId} {
+      allow read, write: if false;
+    }
+
+    match /publicEmergencyIntakeKeys/{keyId} {
+      allow read, write: if false;
     }
 
     match /auditLogs/{auditLogId} {

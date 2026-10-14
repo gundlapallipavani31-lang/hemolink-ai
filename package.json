@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "qa:seed": "node scripts/seed-firebase-qa.mjs",
+    "qa:verify": "node scripts/verify-firebase-qa.mjs"
   },
   "dependencies": {
     "firebase": "^12.19.0",

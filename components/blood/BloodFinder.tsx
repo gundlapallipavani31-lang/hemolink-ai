@@ -1,8 +1,8 @@
 ﻿"use client";
 
 import Link from "next/link";
-import { useAuth } from "@/hooks/useAuth";
 import { useState, type FormEvent } from "react";
+import { PublicEmergencyIntakeForm } from "@/components/blood/PublicEmergencyIntakeForm";
 import type { BloodComponent, BloodGroup } from "@/types/domain";
 
 const groups: BloodGroup[] = ["A+", "A-", "B+", "B-", "O+", "O-", "AB+", "AB-"];
@@ -19,7 +19,6 @@ type AvailabilityResult = {
 };
 
 export function BloodFinder() {
-  const { userProfile } = useAuth();
   const [results, setResults] = useState<AvailabilityResult[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -61,7 +60,7 @@ export function BloodFinder() {
           <p className="mt-2 text-sm leading-6 text-foreground-muted">No current matching stock was found for this search. Hospitals can submit a request for authorized review.</p>
           <div className="mt-5 flex flex-wrap items-center gap-3">
             <p className="text-sm font-semibold text-foreground">Need Blood Urgently?</p>
-            <Link href={userProfile ? "/hospital/requests/emergency" : "/login"} className="inline-flex rounded-lg bg-red-600 px-4 py-3 text-sm font-semibold text-white">Create Emergency Request</Link>
+            <Link href="#emergency-intake" className="inline-flex rounded-lg bg-red-600 px-4 py-3 text-sm font-semibold text-white">Submit a blood requirement</Link>
           </div>
         </section>
       )}
@@ -73,10 +72,11 @@ export function BloodFinder() {
           </table>
           <div className="flex flex-wrap items-center gap-3 border-t border-border px-5 py-4">
             <p className="text-sm font-semibold text-foreground">Need Blood Urgently?</p>
-            <Link href={userProfile ? "/hospital/requests/emergency" : "/login"} className="inline-flex rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white">Create Emergency Request</Link>
+            <Link href="#emergency-intake" className="inline-flex rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white">Submit a blood requirement</Link>
           </div>
         </section>
       )}
+      <PublicEmergencyIntakeForm />
     </main>
   );
 }

@@ -156,6 +156,7 @@ export function LandingPage() {
               <p className="mt-7 max-w-xl text-base leading-7 text-foreground-muted sm:text-lg sm:leading-8">HemoLink AI connects hospitals, blood banks, and eligible donors through intelligent matching, demand forecasting, and emergency response.</p>
               <div className="mt-9 flex flex-col gap-3 sm:flex-row">
                 <a href="/find-blood" className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-5 py-3.5 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-primary-hover hover:shadow-md">Find Blood <Arrow /></a>
+                <a href="/find-blood#emergency-intake" className="inline-flex items-center justify-center gap-2 rounded-lg border border-red-200 bg-surface px-5 py-3.5 text-sm font-semibold text-danger transition hover:bg-red-50">Submit an emergency requirement</a>
                 <a href="/register" className="inline-flex items-center justify-center gap-2 rounded-lg border border-border-strong bg-surface px-5 py-3.5 text-sm font-semibold text-primary transition hover:-translate-y-0.5 hover:border-primary/30 hover:bg-surface-muted">Get started <span aria-hidden="true">↗</span></a>
               </div>
               <p className="mt-5 text-xs text-foreground-subtle">A coordination platform designed for healthcare teams and eligible donors.</p>

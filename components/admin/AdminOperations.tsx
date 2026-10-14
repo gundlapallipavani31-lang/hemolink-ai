@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { EmptyState, ErrorState, LoadingState } from "@/components/ui/AsyncState";
 import { useAuth } from "@/hooks/useAuth";
+import { adminClientFetch } from "@/lib/adminClientFetch";
+import type { User as FirebaseUser } from "firebase/auth";
 import {
   inventoryDate,
   inventoryEligibilityMessage,
@@ -39,11 +41,8 @@ type OnboardingRequest = {
 };
 type InventoryRecord = { id: string; bloodBankId?: unknown; bloodGroup?: unknown; rhFactor?: unknown; componentType?: unknown; unitsAvailable?: unknown; unitsReserved?: unknown; status?: unknown; collectionDate?: unknown; expiryDate?: unknown; ownerVerified?: boolean };
 
-async function adminFetch<T>(path: string, user: { getIdToken: () => Promise<string> }) {
-  const response = await fetch(path, { headers: { Authorization: `Bearer ${await user.getIdToken()}` } });
-  const body = await response.json();
-  if (!response.ok) throw new Error(body.error || "Admin data could not be loaded.");
-  return body as T;
+async function adminFetch<T>(path: string, user: FirebaseUser) {
+  return adminClientFetch<T>(path, user);
 }
 
 const readable = (value: string) => value.replace(/([A-Z])/g, " $1").replace(/^./, (letter) => letter.toUpperCase());
@@ -80,8 +79,11 @@ export function AdminUsersPage() {
     if (!firebaseUser) return;
     setSavingUid(user.uid); setError("");
     try {
-      const response = await fetch("/api/admin/users/" + user.uid, { method: "PATCH", headers: { Authorization: `Bearer ${await firebaseUser.getIdToken()}`, "Content-Type": "application/json" }, body: JSON.stringify({ disabled: !user.disabled }) });
-      if (!response.ok) throw new Error((await response.json()).error || "Access update failed.");
+      await adminClientFetch("/api/admin/users/" + user.uid, firebaseUser, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ disabled: !user.disabled }),
+      });
       setUsers((current) => current.map((item) => item.uid === user.uid ? { ...item, disabled: !user.disabled, status: user.disabled ? "active" : "disabled" } : item));
     } catch (reason) { setError(reason instanceof Error ? reason.message : "Access update failed."); } finally { setSavingUid(""); }
   }
@@ -120,14 +122,11 @@ export function AdminOrganizationsPage() {
     setSavingId(item.id);
     setError("");
     try {
-      const token = await firebaseUser.getIdToken();
-      const response = await fetch("/api/admin/organizations/requests", {
+      await adminClientFetch("/api/admin/organizations/requests", firebaseUser, {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ requestId: item.id, action, ...(action === "reject" ? { rejectionReason } : {}) }),
       });
-      const result = await response.json() as { error?: string };
-      if (!response.ok) throw new Error(result.error || "Organization decision could not be saved.");
       const updated = await adminFetch<{ requests: OnboardingRequest[] }>("/api/admin/organizations/requests", firebaseUser);
       setRequests(updated.requests);
     } catch (reason) {

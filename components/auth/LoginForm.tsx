@@ -1,27 +1,28 @@
 "use client";
 
 import { signInWithEmailAndPassword } from "firebase/auth";
-import { useState, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
+import { useRef, useState, type FormEvent } from "react";
 import { auth } from "@/lib/firebase";
 import { AuthInput } from "./AuthInput";
 import { getFirebaseErrorMessage } from "./firebaseErrorMessage";
 import { PasswordField } from "./PasswordField";
 
 export function LoginForm() {
+  const router = useRouter();
+  const submissionInProgress = useRef(false);
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (submitting) return;
+    if (submissionInProgress.current) return;
 
     const formData = new FormData(event.currentTarget);
     const email = String(formData.get("email") ?? "").trim();
     const password = String(formData.get("password") ?? "");
 
     setError("");
-    setSuccess("");
 
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       setError("Enter a valid email address.");
@@ -32,13 +33,15 @@ export function LoginForm() {
       return;
     }
 
+    submissionInProgress.current = true;
     setSubmitting(true);
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      setSuccess("You are signed in. Your workspace is ready for the next step.");
+      router.replace("/dashboard");
     } catch (firebaseError: unknown) {
       setError(getFirebaseErrorMessage(firebaseError, "login"));
     } finally {
+      submissionInProgress.current = false;
       setSubmitting(false);
     }
   }
@@ -54,7 +57,6 @@ export function LoginForm() {
         </div>
       </fieldset>
       {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3.5 py-3 text-sm leading-5 text-danger">{error}</p>}
-      {success && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-3.5 py-3 text-sm leading-5 text-success">{success}</p>}
       <button type="submit" disabled={submitting} className="h-12 w-full rounded-[0.7rem] bg-primary text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-primary-hover hover:shadow-md disabled:cursor-wait disabled:opacity-70">
         {submitting ? "Signing in…" : "Sign In"}
       </button>

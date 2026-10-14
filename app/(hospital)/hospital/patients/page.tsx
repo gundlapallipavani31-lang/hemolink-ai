@@ -1,2 +1,6 @@
 import { PatientsPage } from "@/components/hospital/HospitalWorkspace";
-export default PatientsPage;
+import { HospitalRouteGuard } from "@/components/hospital/HospitalRouteGuard";
+
+export default function Page() {
+  return <HospitalRouteGuard><PatientsPage /></HospitalRouteGuard>;
+}

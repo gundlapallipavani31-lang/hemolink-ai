@@ -1,3 +1,6 @@
 import { HospitalEmergencyRequestForm } from "@/components/hospital/requests/HospitalRequests";
+import { HospitalRouteGuard } from "@/components/hospital/HospitalRouteGuard";
 
-export default HospitalEmergencyRequestForm;
+export default function Page() {
+  return <HospitalRouteGuard><HospitalEmergencyRequestForm /></HospitalRouteGuard>;
+}

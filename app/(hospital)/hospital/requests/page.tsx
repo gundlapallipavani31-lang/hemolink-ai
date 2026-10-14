@@ -1,2 +1,6 @@
 import { HospitalRequestList } from "@/components/hospital/requests/HospitalRequests";
-export default HospitalRequestList;
+import { HospitalRouteGuard } from "@/components/hospital/HospitalRouteGuard";
+
+export default function Page() {
+  return <HospitalRouteGuard><HospitalRequestList /></HospitalRouteGuard>;
+}
