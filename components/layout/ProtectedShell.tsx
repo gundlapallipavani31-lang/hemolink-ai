@@ -1,9 +1,7 @@
 "use client";
 
-import { signOut } from "firebase/auth";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
-import { auth } from "@/lib/firebase";
 import { formatRole } from "@/types/auth";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -24,8 +22,15 @@ function SessionLoading() {
 
 export function ProtectedShell({ children }: ProtectedShellProps) {
   const router = useRouter();
-  const { firebaseUser, userProfile, loading, isAuthenticated, profileError } =
-    useAuth();
+  const {
+    firebaseUser,
+    userProfile,
+    loading,
+    isAuthenticated,
+    profileError,
+    signingOut,
+    signOutCurrentUser,
+  } = useAuth();
   const [logoutError, setLogoutError] = useState("");
 
   useEffect(() => {
@@ -42,7 +47,7 @@ export function ProtectedShell({ children }: ProtectedShellProps) {
     setLogoutError("");
 
     try {
-      await signOut(auth);
+      await signOutCurrentUser();
       router.replace("/login");
     } catch {
       setLogoutError("We could not sign you out. Please try again.");
@@ -81,9 +86,10 @@ export function ProtectedShell({ children }: ProtectedShellProps) {
             <button
               type="button"
               onClick={handleLogout}
-              className="rounded-[0.65rem] border border-border-strong bg-surface px-3.5 py-2 text-sm font-semibold text-foreground-muted transition hover:border-primary/40 hover:text-primary"
+              disabled={signingOut}
+              className="rounded-[0.65rem] border border-border-strong bg-surface px-3.5 py-2 text-sm font-semibold text-foreground-muted transition hover:border-primary/40 hover:text-primary disabled:cursor-wait disabled:opacity-60"
             >
-              Log out
+              {signingOut ? "Signing out…" : "Log out"}
             </button>
           </div>
         </div>

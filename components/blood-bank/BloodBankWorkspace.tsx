@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { EmptyState, ErrorState, LoadingState } from "@/components/ui/AsyncState";
+import { PersonalAccountDetails } from "@/components/layout/PersonalAccountDetails";
 import { useAuth } from "@/hooks/useAuth";
 import {
   inventoryEligibilityMessage,
@@ -156,7 +157,7 @@ export function BloodBankProfilePage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState("");
   if (loading) return <LoadingState title="Loading organization profile" />;
-  if (!organization) return <main className="mx-auto max-w-3xl px-5 py-10 sm:px-8"><EmptyState title="Organization membership is not configured" description="A trusted blood-bank organization membership is required before profile data can be displayed or edited." /></main>;
+  if (!organization) return <main className="mx-auto max-w-3xl px-5 py-10 sm:px-8"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-medical">Blood-bank profile</p><h1 className="mt-3 text-4xl font-semibold text-foreground">Profile information</h1><div className="mt-8"><PersonalAccountDetails /></div><div className="mt-6"><EmptyState title="Organization membership is not configured" description="Your personal account details are shown above. A trusted blood-bank organization membership is required before organization data can be displayed or edited." /></div></main>;
   const current = organization;
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -175,7 +176,7 @@ export function BloodBankProfilePage() {
     setSaving(true); setSaved(""); setError("");
     try { await updateOrganizationProfile(current.id, next); setOrganization({ ...current, ...next }); setSaved("Organization profile saved."); } catch { setError("We could not save this profile."); } finally { setSaving(false); }
   }
-  return <main className="mx-auto max-w-3xl px-5 py-10 sm:px-8"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-medical">Blood-bank profile</p><h1 className="mt-3 text-4xl font-semibold text-foreground">Organization information</h1><form onSubmit={submit} className="mt-8 grid gap-5 rounded-2xl border border-border bg-surface p-6 sm:grid-cols-2">{["name", "legalName", "registrationNumber", "email", "phone", "address", "city", "state", "country"].map((field) => <label key={field} className="grid gap-2 text-sm font-medium capitalize">{label(field)}<input name={field} defaultValue={current[field as keyof Organization] as string || ""} className="h-12 rounded-lg border border-border-strong px-3" /></label>)}<div className="sm:col-span-2"><p className="text-sm text-foreground-muted">Verification status: <span className="font-semibold capitalize text-primary">{current.verificationStatus}</span></p>{error && <p role="alert" className="mt-3 text-sm text-danger">{error}</p>}{saved && <p role="status" className="mt-3 text-sm text-success">{saved}</p>}<button disabled={saving} className="mt-5 h-12 rounded-lg bg-primary px-5 text-sm font-semibold text-white disabled:opacity-60">{saving ? "Saving…" : "Save profile"}</button></div></form></main>;
+  return <main className="mx-auto max-w-3xl px-5 py-10 sm:px-8"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-medical">Blood-bank profile</p><h1 className="mt-3 text-4xl font-semibold text-foreground">Profile information</h1><div className="mt-8"><PersonalAccountDetails /></div><h2 className="mt-8 font-semibold text-foreground">Blood-bank organization</h2><form onSubmit={submit} className="mt-4 grid gap-5 rounded-2xl border border-border bg-surface p-6 sm:grid-cols-2">{["name", "legalName", "registrationNumber", "email", "phone", "address", "city", "state", "country"].map((field) => <label key={field} className="grid gap-2 text-sm font-medium capitalize">{label(field)}<input name={field} defaultValue={current[field as keyof Organization] as string || ""} className="h-12 rounded-lg border border-border-strong px-3" /></label>)}<div className="sm:col-span-2"><p className="text-sm text-foreground-muted">Verification status: <span className="font-semibold capitalize text-primary">{current.verificationStatus}</span></p>{error && <p role="alert" className="mt-3 text-sm text-danger">{error}</p>}{saved && <p role="status" className="mt-3 text-sm text-success">{saved}</p>}<button disabled={saving} className="mt-5 h-12 rounded-lg bg-primary px-5 text-sm font-semibold text-white disabled:opacity-60">{saving ? "Saving…" : "Save organization profile"}</button></div></form></main>;
 }
 
 function InventoryTable({ inventory }: { inventory: BloodInventory[] }) {

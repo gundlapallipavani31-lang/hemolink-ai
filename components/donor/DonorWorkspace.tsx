@@ -75,6 +75,12 @@ export function DonorDashboard() {
   const { profile, loading, error } = useDonorProfile();
   if (loading) return <LoadingState title="Loading donor workspace" />;
   if (error) return <ErrorState title="Donor profile unavailable" description={error} />;
+  const missingProfileDetails = [
+    !profile?.bloodGroup && "blood group",
+    !profile?.rhFactor && "RH factor",
+    !profile?.phone && !userProfile?.phone && "phone number",
+    !profile?.city && "city",
+  ].filter((detail): detail is string => Boolean(detail));
   return (
     <main className="mx-auto max-w-7xl px-5 py-10 sm:px-8 lg:px-10">
       <p className="text-xs font-semibold uppercase tracking-[0.18em] text-medical">Donor workspace</p>
@@ -92,13 +98,29 @@ export function DonorDashboard() {
           </div>
         ))}
       </div>
-      {!profile && (
-        <p role="status" className="mt-5 rounded-lg border border-border bg-surface p-4 text-sm text-foreground-muted">
-          Your donor profile has not been set up yet. Complete your profile to add your donor details.
-        </p>
+      {missingProfileDetails.length > 0 && (
+        <section
+          aria-labelledby="donor-profile-completion-title"
+          className="mt-6 flex flex-col gap-4 rounded-xl border border-primary/20 bg-soft-rose p-5 sm:flex-row sm:items-center sm:justify-between"
+        >
+          <div>
+            <h2 id="donor-profile-completion-title" className="font-semibold text-foreground">
+              Complete your profile
+            </h2>
+            <p className="mt-1 text-sm leading-6 text-foreground-muted">
+              Add your {missingProfileDetails.join(", ")} to finish setting up your donor details.
+            </p>
+          </div>
+          <Link
+            href="/donor/profile"
+            className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-primary-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+          >
+            Complete your profile
+          </Link>
+        </section>
       )}
       <div className="mt-8 flex flex-wrap gap-3">
-        <Link href="/donor/profile" className="rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-white">Complete profile</Link>
+        <Link href="/donor/profile" className="rounded-lg border border-border-strong px-4 py-3 text-sm font-semibold text-primary">{missingProfileDetails.length ? "Edit profile" : "My profile"}</Link>
         <Link href="/donor/availability" className="rounded-lg border border-border-strong px-4 py-3 text-sm font-semibold text-primary">Set availability</Link>
         <Link href="/donor/eligibility" className="rounded-lg border border-border-strong px-4 py-3 text-sm font-semibold text-primary">View eligibility</Link>
         <Link href="/donor/opportunities" className="rounded-lg border border-primary px-4 py-3 text-sm font-semibold text-primary">View donation opportunities</Link>

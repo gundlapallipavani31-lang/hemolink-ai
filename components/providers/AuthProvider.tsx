@@ -2,13 +2,16 @@
 
 import {
   onAuthStateChanged,
+  signOut as firebaseSignOut,
   type User as FirebaseUser,
 } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import {
   createContext,
+  useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -19,9 +22,11 @@ type AuthContextValue = {
   firebaseUser: FirebaseUser | null;
   userProfile: UserProfile | null;
   loading: boolean;
+  signingOut: boolean;
   isAuthenticated: boolean;
   role: AppRole | null;
   profileError: string | null;
+  signOutCurrentUser: () => Promise<void>;
 };
 
 export const AuthContext = createContext<AuthContextValue | undefined>(
@@ -36,7 +41,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [signingOut, setSigningOut] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
+  const signOutInProgress = useRef<Promise<void> | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -53,10 +60,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setProfileError(null);
 
       if (!user) {
+        setSigningOut(false);
         setLoading(false);
         return;
       }
 
+      setSigningOut(false);
       setLoading(true);
 
       try {
@@ -112,16 +121,44 @@ export function AuthProvider({ children }: AuthProviderProps) {
     };
   }, []);
 
+  const signOutCurrentUser = useCallback(() => {
+    if (signOutInProgress.current) return signOutInProgress.current;
+
+    setSigningOut(true);
+    setLoading(true);
+    const signOutPromise = firebaseSignOut(auth)
+      .then(() => {
+        setFirebaseUser(null);
+        setUserProfile(null);
+        setProfileError(null);
+        setLoading(false);
+        setSigningOut(false);
+      })
+      .catch((error: unknown) => {
+        setLoading(false);
+        setSigningOut(false);
+        throw error;
+      })
+      .finally(() => {
+        signOutInProgress.current = null;
+      });
+
+    signOutInProgress.current = signOutPromise;
+    return signOutPromise;
+  }, []);
+
   const value = useMemo<AuthContextValue>(
     () => ({
       firebaseUser,
       userProfile,
       loading,
+      signingOut,
       isAuthenticated: firebaseUser !== null,
       role: userProfile?.role ?? null,
       profileError,
+      signOutCurrentUser,
     }),
-    [firebaseUser, loading, profileError, userProfile],
+    [firebaseUser, loading, profileError, signOutCurrentUser, signingOut, userProfile],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
