@@ -61,6 +61,7 @@
   --color-soft-rose: var(--soft-rose);
   --color-ring: var(--ring);
   --font-sans: var(--font-geist-sans);
+  --font-display: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
   --radius-sm: var(--radius-sm);
   --radius-md: var(--radius-md);
@@ -92,9 +93,48 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+@layer base {
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif;
+    font-feature-settings: "ss01" 1, "cv11" 1;
+    text-wrap: balance;
+  }
+
+  h1 {
+    font-size: clamp(2rem, 3vw, 2.75rem);
+    font-weight: 650;
+    line-height: 1.12;
+    letter-spacing: -0.04em;
+  }
+
+  h2 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    line-height: 1.3;
+    letter-spacing: -0.025em;
+  }
+
+  h3 {
+    font-size: 1.05rem;
+    font-weight: 600;
+    line-height: 1.35;
+    letter-spacing: -0.015em;
+  }
+}
+
 ::selection {
   background: var(--selection);
   color: var(--primary);
+}
+
+.account-menu-trigger::-webkit-details-marker {
+  display: none;
+}
+
+.account-menu-trigger::marker {
+  content: "";
 }
 
 :focus-visible {
